@@ -990,6 +990,42 @@ function Canvas({ initialNodes, initialEdges, isEditor: isEditorProp, initialVie
     })
   }, [setNodes, edges, triggerSave])
 
+  const onSelectionDragStop = useCallback((_: React.MouseEvent, draggedNodes: Node[]) => {
+    dragStart.current = null
+    const movable = draggedNodes.filter(n => n.type === 'card' || n.type === 'label')
+    if (movable.length === 0) return
+
+    setNodes(ns => {
+      let updated = [...ns]
+      for (const node of movable) {
+        const nx = node.position.x
+        const ny = node.position.y
+        let targetFrameId: string | null = null
+        for (const f of updated) {
+          if (f.type !== 'frame') continue
+          const fd = f.data as unknown as RoadmapFrameData
+          if (fd.minimized) continue
+          const fx = f.position.x, fy = f.position.y
+          const fw = (f.measured?.width ?? (f.style?.width as number) ?? 400)
+          const fh = (f.measured?.height ?? (f.style?.height as number) ?? 300)
+          if (nx >= fx && nx <= fx + fw && ny >= fy && ny <= fy + fh) { targetFrameId = f.id; break }
+        }
+        updated = updated.map(n => {
+          if (n.type !== 'frame') return n
+          const fd = n.data as unknown as RoadmapFrameData
+          const ids = fd.containedNodeIds ?? []
+          if (n.id === targetFrameId) {
+            return ids.includes(node.id) ? n : { ...n, data: { ...(n.data as object), containedNodeIds: [...ids, node.id] } as unknown as Record<string, unknown> }
+          } else {
+            return ids.includes(node.id) ? { ...n, data: { ...(n.data as object), containedNodeIds: ids.filter(i => i !== node.id) } as unknown as Record<string, unknown> } : n
+          }
+        })
+      }
+      triggerSave(updated, edges)
+      return updated
+    })
+  }, [setNodes, edges, triggerSave])
+
   const roadmapActions = useMemo<RoadmapActions>(() => ({
     onEdit: handleToolbarEdit,
     onDelete: handleToolbarDelete,
@@ -1202,6 +1238,7 @@ function Canvas({ initialNodes, initialEdges, isEditor: isEditorProp, initialVie
           onNodeDragStart={isEditor ? onNodeDragStart : undefined}
           onNodeDrag={isEditor ? onNodeDrag : undefined}
           onNodeDragStop={isEditor ? onNodeDragStop : undefined}
+          onSelectionDragStop={isEditor ? onSelectionDragStop : undefined}
           onPaneClick={closeContextMenu}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
