@@ -22,22 +22,23 @@ import RoadmapCardNode, { type RoadmapCardData } from './RoadmapCardNode'
 import RoadmapLabelNode, { type RoadmapLabelData } from './RoadmapLabelNode'
 import RoadmapFrameNode, { type RoadmapFrameData } from './RoadmapFrameNode'
 import RoadmapTableNode, { type RoadmapTableData } from './RoadmapTableNode'
+import RoadmapImageNode, { type RoadmapImageData } from './RoadmapImageNode'
 import RoadmapEditModal from './RoadmapEditModal'
 import RoadmapEdge from './RoadmapEdge'
 import { RoadmapActionsContext, type RoadmapActions } from './RoadmapActionsContext'
 import ColorPicker from './ColorPicker'
 
+declare const google: { script: { run: { withSuccessHandler: (fn: (r: unknown) => void) => { withFailureHandler: (fn: (e: unknown) => void) => { saveRoadmapData: (json: string) => void; saveRoadmapDefaultLayout: (json: string) => void } }; saveRoadmapData: (json: string) => void; saveRoadmapDefaultLayout: (json: string) => void } } }
+
 interface Props {
-  initialNodes?: Node[]
-  initialEdges?: Edge[]
-  isEditor?: boolean
+  initialNodes: Node[]
+  initialEdges: Edge[]
+  isEditor: boolean
   initialViewport?: { x: number; y: number; zoom: number }
   initialCustomColors?: string[]
-  onSave?: (json: string) => void
-  onSaveDefault?: (json: string) => void
 }
 
-const nodeTypes = { card: RoadmapCardNode, label: RoadmapLabelNode, frame: RoadmapFrameNode, table: RoadmapTableNode }
+const nodeTypes = { card: RoadmapCardNode, label: RoadmapLabelNode, frame: RoadmapFrameNode, table: RoadmapTableNode, image: RoadmapImageNode }
 const edgeTypes = { smoothstep: RoadmapEdge }
 
 interface ContextMenuState {
@@ -210,7 +211,61 @@ function TableConfigModal({ open, atPosition, onSave, onClose }: {
   )
 }
 
-function Canvas({ initialNodes = [], initialEdges = [], isEditor: isEditorProp = false, initialViewport, initialCustomColors, onSave, onSaveDefault }: Props) {
+// ── ImageModal ────────────────────────────────────────────────────────────────
+function ImageModal({ open, onSave, onClose }: {
+  open: boolean
+  onSave: (src: string) => void
+  onClose: () => void
+}) {
+  const [src, setSrc] = useState('')
+
+  useEffect(() => { if (open) setSrc('') }, [open])
+
+  if (!open) return null
+  const valid = src.trim().startsWith('data:image') || src.trim().startsWith('http')
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl border border-gray-200 w-full max-w-sm mx-4 overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="bg-[#1A1A1A] px-5 py-3 flex items-center justify-between">
+          <h3 className="font-bold text-white text-sm">Adicionar ícone / imagem</h3>
+          <button onClick={onClose} className="text-white/50 hover:text-white">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Cole o link ou base64 da imagem</label>
+            <textarea
+              value={src}
+              onChange={e => setSrc(e.target.value)}
+              placeholder="data:image/png;base64,... ou https://..."
+              className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-[#1D9E75] resize-none font-mono"
+              rows={3}
+              autoFocus
+            />
+          </div>
+          {valid && (
+            <div className="flex justify-center p-3 bg-gray-50 rounded-lg">
+              <img src={src.trim()} alt="preview" className="max-h-20 max-w-full object-contain" />
+            </div>
+          )}
+        </div>
+        <div className="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">
+          <button onClick={onClose} className="text-xs text-gray-400 px-3 py-1.5">Cancelar</button>
+          <button
+            onClick={() => valid && onSave(src.trim())}
+            disabled={!valid}
+            className="text-xs font-bold text-white bg-[#00461e] hover:bg-[#003318] disabled:bg-gray-300 px-4 py-1.5 rounded-lg"
+          >
+            Adicionar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Canvas({ initialNodes, initialEdges, isEditor: isEditorProp, initialViewport, initialCustomColors }: Props) {
   // Mobile: always read-only regardless of editor permission
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
   useEffect(() => {
@@ -227,6 +282,7 @@ function Canvas({ initialNodes = [], initialEdges = [], isEditor: isEditorProp =
   const [editLabel, setEditLabel] = useState<Node | null>(null)
   const [newFrameAtPosition, setNewFrameAtPosition] = useState<{ x: number; y: number } | null>(null)
   const [showNewTable, setShowNewTable] = useState(false)
+  const [showNewImage, setShowNewImage] = useState(false)
   const [newTableAtPosition, setNewTableAtPosition] = useState<{ x: number; y: number } | null>(null)
   const [selectMode, setSelectMode] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
@@ -271,19 +327,13 @@ function Canvas({ initialNodes = [], initialEdges = [], isEditor: isEditorProp =
     setSaveStatus('saving')
     saveTimer.current = setTimeout(() => {
       try {
-        if (onSave) {
-          onSave(buildPayload(n, e))
-          setSaveStatus('saved')
-          setTimeout(() => setSaveStatus('idle'), 2000)
-        } else {
-          setSaveStatus('idle')
-        }
-      } catch {
-        setSaveStatus('error')
-        setTimeout(() => setSaveStatus('idle'), 3000)
-      }
+        google.script.run
+          .withSuccessHandler(() => { setSaveStatus('saved'); setTimeout(() => setSaveStatus('idle'), 2000) })
+          .withFailureHandler(() => { setSaveStatus('error'); setTimeout(() => setSaveStatus('idle'), 3000) })
+          .saveRoadmapData(buildPayload(n, e))
+      } catch { setSaveStatus('error') }
     }, 1500)
-  }, [isEditor, buildPayload, onSave])
+  }, [isEditor, buildPayload])
 
   // Undo handler
   const handleUndo = useCallback(() => {
@@ -298,19 +348,13 @@ function Canvas({ initialNodes = [], initialEdges = [], isEditor: isEditorProp =
     setSaveStatus('saving')
     saveTimer.current = setTimeout(() => {
       try {
-        if (onSave) {
-          onSave(buildPayload(prev.nodes, prev.edges))
-          setSaveStatus('saved')
-          setTimeout(() => setSaveStatus('idle'), 2000)
-        } else {
-          setSaveStatus('idle')
-        }
-      } catch {
-        setSaveStatus('error')
-        setTimeout(() => setSaveStatus('idle'), 3000)
-      }
+        google.script.run
+          .withSuccessHandler(() => { setSaveStatus('saved'); setTimeout(() => setSaveStatus('idle'), 2000) })
+          .withFailureHandler(() => { setSaveStatus('error'); setTimeout(() => setSaveStatus('idle'), 3000) })
+          .saveRoadmapData(buildPayload(prev.nodes, prev.edges))
+      } catch { setSaveStatus('error') }
     }, 1500)
-  }, [setNodes, setEdges, buildPayload, onSave])
+  }, [setNodes, setEdges, buildPayload])
 
   // Ctrl+Z undo
   useEffect(() => {
@@ -335,10 +379,10 @@ function Canvas({ initialNodes = [], initialEdges = [], isEditor: isEditorProp =
     if (isFirstColorRender.current) { isFirstColorRender.current = false; return }
     if (!isEditor) return
     const timer = setTimeout(() => {
-      setNodes(n => { setEdges(e => { try { onSave?.(buildPayload(n, e)) } catch {} return e }); return n })
+      setNodes(n => { setEdges(e => { try { google.script.run.saveRoadmapData(buildPayload(n, e)) } catch {} return e }); return n })
     }, 800)
     return () => clearTimeout(timer)
-  }, [customColors, isEditor, buildPayload, setNodes, setEdges, onSave])
+  }, [customColors, isEditor, buildPayload, setNodes, setEdges])
 
   const handleAddCustomColor = useCallback((color: string) => {
     setCustomColors(prev => prev.includes(color) ? prev : [...prev, color])
@@ -545,6 +589,16 @@ function Canvas({ initialNodes = [], initialEdges = [], isEditor: isEditorProp =
     })
     setShowNewTable(false)
     setNewTableAtPosition(null)
+  }, [reactFlow, setNodes, edges, triggerSave])
+
+  const handleAddImage = useCallback((src: string) => {
+    const viewport = reactFlow.getViewport()
+    const position = { x: -viewport.x / viewport.zoom + 200, y: -viewport.y / viewport.zoom + 100 }
+    const id = `image-${Date.now()}`
+    const data: RoadmapImageData = { src }
+    const newNode: Node = { id, type: 'image', position, data: data as unknown as Record<string, unknown>, style: { width: 64, height: 64 } }
+    setNodes(ns => { const updated = [...ns, newNode]; triggerSave(updated, edges); return updated })
+    setShowNewImage(false)
   }, [reactFlow, setNodes, edges, triggerSave])
 
   const handleTableChange = useCallback((nodeId: string, data: RoadmapTableData) => {
@@ -887,15 +941,16 @@ function Canvas({ initialNodes = [], initialEdges = [], isEditor: isEditorProp =
   const handleSaveDefault = useCallback(() => {
     const payload = buildPayload(nodes, edges)
     try {
-      onSaveDefault?.(payload)
-      onSave?.(payload)
-      setSaveStatus('saved')
-      setTimeout(() => setSaveStatus('idle'), 2000)
-    } catch {
-      setSaveStatus('error')
-      setTimeout(() => setSaveStatus('idle'), 3000)
-    }
-  }, [nodes, edges, buildPayload, onSave, onSaveDefault])
+      // Save as default layout (for new users / empty state)
+      google.script.run
+        .withSuccessHandler(() => { setSaveStatus('saved'); setTimeout(() => setSaveStatus('idle'), 2000) })
+        .withFailureHandler(() => { setSaveStatus('error'); setTimeout(() => setSaveStatus('idle'), 3000) })
+        .saveRoadmapDefaultLayout(payload)
+      // Also save to roadmap_data so viewport is restored on next load for everyone
+      google.script.run.saveRoadmapData(payload)
+      setSaveStatus('saving')
+    } catch { setSaveStatus('error') }
+  }, [nodes, edges, buildPayload])
 
   const statusBg = useMemo(() => {
     if (saveStatus === 'saving') return 'bg-amber-100 text-amber-700'
@@ -957,6 +1012,18 @@ function Canvas({ initialNodes = [], initialEdges = [], isEditor: isEditorProp =
               </svg>
               Tabela
             </button>
+            <button
+              onClick={() => setShowNewImage(true)}
+              className="flex items-center gap-1.5 bg-white text-[#1A1A1A] text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors shadow-md border border-gray-200"
+              title="Adicionar ícone ou imagem"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth={2} />
+                <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" strokeWidth={0} />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 15l-5-5L5 21" />
+              </svg>
+              Ícone
+            </button>
           </>)}
           <button
             onClick={handleDownload}
@@ -991,8 +1058,8 @@ function Canvas({ initialNodes = [], initialEdges = [], isEditor: isEditorProp =
         <div className="absolute top-3 right-14 z-10">
           <span className="text-[10px] text-gray-400">
             {isEditor
-              ? (selectMode ? 'Drag to select multiple · Move group together · Click "Select" to exit' : 'Drag cards · Double click to edit · Right click for more options')
-              : 'Scroll to zoom · Drag background to pan'}
+              ? (selectMode ? 'Arraste para selecionar vários · Mova o grupo junto · Clique "Seleção" para voltar ao modo normal' : 'Arraste cards · Duplo clique para editar · Botão direito para mais opções')
+              : 'Scroll para zoom · Arraste o fundo para navegar'}
           </span>
         </div>
 
@@ -1161,6 +1228,13 @@ function Canvas({ initialNodes = [], initialEdges = [], isEditor: isEditorProp =
           onClose={() => { setShowNewTable(false); setNewTableAtPosition(null) }}
         />
 
+        {/* Image modal */}
+        <ImageModal
+          open={showNewImage}
+          onSave={handleAddImage}
+          onClose={() => setShowNewImage(false)}
+        />
+
         {/* Color Picker */}
         {colorPickerTarget && (
           <ColorPicker
@@ -1191,3 +1265,5 @@ export default function RoadmapCanvasWrapper(props: Props) {
     </div>
   )
 }
+
+export type { Props as RoadmapCanvasProps }
