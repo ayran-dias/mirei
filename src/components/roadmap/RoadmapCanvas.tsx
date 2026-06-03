@@ -23,6 +23,7 @@ import RoadmapLabelNode, { type RoadmapLabelData } from './RoadmapLabelNode'
 import RoadmapFrameNode, { type RoadmapFrameData } from './RoadmapFrameNode'
 import RoadmapTableNode, { type RoadmapTableData } from './RoadmapTableNode'
 import RoadmapImageNode, { type RoadmapImageData } from './RoadmapImageNode'
+import RoadmapGroupNode from './RoadmapGroupNode'
 import RoadmapEditModal from './RoadmapEditModal'
 import RoadmapEdge from './RoadmapEdge'
 import { RoadmapActionsContext, type RoadmapActions } from './RoadmapActionsContext'
@@ -38,7 +39,7 @@ interface Props {
   initialCustomColors?: string[]
 }
 
-const nodeTypes = { card: RoadmapCardNode, label: RoadmapLabelNode, frame: RoadmapFrameNode, table: RoadmapTableNode, image: RoadmapImageNode }
+const nodeTypes = { card: RoadmapCardNode, label: RoadmapLabelNode, frame: RoadmapFrameNode, table: RoadmapTableNode, image: RoadmapImageNode, group: RoadmapGroupNode }
 const edgeTypes = { smoothstep: RoadmapEdge }
 
 interface ContextMenuState {
@@ -373,6 +374,10 @@ function Canvas({ initialNodes, initialEdges, isEditor: isEditorProp, initialVie
         const selected = nodes.filter(n => n.selected)
         if (selected.length > 0) clipboardNodes.current = selected
       }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'g') {
+        e.preventDefault()
+        handleGroup()
+      }
       if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
         if (clipboardNodes.current.length === 0) return
         e.preventDefault()
@@ -393,7 +398,7 @@ function Canvas({ initialNodes, initialEdges, isEditor: isEditorProp, initialVie
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [isEditor, handleUndo, nodes, edges, setNodes, triggerSave])
+  }, [isEditor, handleUndo, nodes, edges, setNodes, triggerSave, handleGroup])
 
   // ── Alignment ────────────────────────────────────────────────────────────────
   const selectedNodes = useMemo(() => nodes.filter(n => n.selected), [nodes])
@@ -1026,6 +1031,82 @@ function Canvas({ initialNodes, initialEdges, isEditor: isEditorProp, initialVie
     })
   }, [setNodes, edges, triggerSave])
 
+  // ── Group / Ungroup ──────────────────────────────────────────────────────────
+  const handleGroup = useCallback((nodesToGroup?: Node[]) => {
+    const sel = nodesToGroup ?? nodes.filter(n => n.selected && !n.parentId && n.type !== 'group')
+    if (sel.length < 2) return
+    const PAD = 16
+    const minX = Math.min(...sel.map(n => n.position.x)) - PAD
+    const minY = Math.min(...sel.map(n => n.position.y)) - PAD
+    const maxX = Math.max(...sel.map(n => n.position.x + ((n.style?.width as number) ?? (n as any).measured?.width ?? 230)))
+    const maxY = Math.max(...sel.map(n => n.position.y + ((n.style?.height as number) ?? (n as any).measured?.height ?? 120)))
+    const gId = `group-${Date.now()}`
+    const groupNode: Node = {
+      id: gId, type: 'group', position: { x: minX, y: minY },
+      data: {} as Record<string, unknown>,
+      style: { width: maxX - minX + PAD, height: maxY - minY + PAD },
+      zIndex: Math.min(...sel.map(n => n.zIndex ?? 0)) - 1,
+    }
+    setNodes(ns => {
+      const updated = [
+        groupNode,
+        ...ns.map(n => sel.some(s => s.id === n.id)
+          ? { ...n, parentId: gId, position: { x: n.position.x - minX, y: n.position.y - minY }, selected: false }
+          : n
+        ),
+      ]
+      triggerSave(updated, edges)
+      return updated
+    })
+  }, [nodes, setNodes, edges, triggerSave])
+
+  const handleUngroup = useCallback((groupId: string) => {
+    setNodes(ns => {
+      const group = ns.find(n => n.id === groupId)
+      if (!group) return ns
+      const updated = ns
+        .filter(n => n.id !== groupId)
+        .map(n => n.parentId !== groupId ? n : {
+          ...n,
+          parentId: undefined,
+          position: { x: n.position.x + group.position.x, y: n.position.y + group.position.y },
+        })
+      triggerSave(updated, edges)
+      return updated
+    })
+  }, [setNodes, edges, triggerSave])
+
+  // ── Z-index / Layers ─────────────────────────────────────────────────────────
+  const handleZIndexChange = useCallback((nodeId: string, dir: 'front' | 'back' | 'forward' | 'backward') => {
+    setNodes(ns => {
+      const zValues = ns.map(n => n.zIndex ?? 0)
+      const maxZ = Math.max(...zValues)
+      const minZ = Math.min(...zValues)
+      const sorted = [...ns].sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
+      const idx = sorted.findIndex(n => n.id === nodeId)
+      let updated: Node[]
+      if (dir === 'front') {
+        updated = ns.map(n => n.id === nodeId ? { ...n, zIndex: maxZ + 1 } : n)
+      } else if (dir === 'back') {
+        updated = ns.map(n => n.id === nodeId ? { ...n, zIndex: minZ - 1 } : n)
+      } else if (dir === 'forward' && idx < sorted.length - 1) {
+        const above = sorted[idx + 1]
+        const myZ = sorted[idx].zIndex ?? 0
+        const aboveZ = above.zIndex ?? 0
+        updated = ns.map(n => n.id === nodeId ? { ...n, zIndex: aboveZ } : n.id === above.id ? { ...n, zIndex: myZ } : n)
+      } else if (dir === 'backward' && idx > 0) {
+        const below = sorted[idx - 1]
+        const myZ = sorted[idx].zIndex ?? 0
+        const belowZ = below.zIndex ?? 0
+        updated = ns.map(n => n.id === nodeId ? { ...n, zIndex: belowZ } : n.id === below.id ? { ...n, zIndex: myZ } : n)
+      } else {
+        return ns
+      }
+      triggerSave(updated, edges)
+      return updated
+    })
+  }, [setNodes, edges, triggerSave])
+
   const roadmapActions = useMemo<RoadmapActions>(() => ({
     onEdit: handleToolbarEdit,
     onDelete: handleToolbarDelete,
@@ -1034,7 +1115,9 @@ function Canvas({ initialNodes, initialEdges, isEditor: isEditorProp, initialVie
     onFrameTitleChange: handleFrameTitleChange,
     onTableChange: handleTableChange,
     onOpenColorPicker: handleOpenColorPicker,
-  }), [handleToolbarEdit, handleToolbarDelete, handleStatusChange, handleFrameToggle, handleFrameTitleChange, handleTableChange, handleOpenColorPicker])
+    onUngroup: handleUngroup,
+    onZIndexChange: handleZIndexChange,
+  }), [handleToolbarEdit, handleToolbarDelete, handleStatusChange, handleFrameToggle, handleFrameTitleChange, handleTableChange, handleOpenColorPicker, handleUngroup, handleZIndexChange])
 
   // ── Download PNG ──────────────────────────────────────────────────────────────
   const handleDownload = useCallback(() => {

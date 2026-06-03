@@ -186,6 +186,14 @@ function RoadmapCardNode({ id, data, selected }: NodeProps) {
           >
             ✎
           </button>
+          {actions.onZIndexChange && (<>
+            <div className="w-px h-4 bg-gray-200 mx-0.5" />
+            <button onClick={() => actions.onZIndexChange!(id, 'forward')}  title="Avançar camada" className="text-[10px] font-bold w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500 transition-colors">↑</button>
+            <button onClick={() => actions.onZIndexChange!(id, 'backward')} title="Recuar camada"  className="text-[10px] font-bold w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500 transition-colors">↓</button>
+            <button onClick={() => actions.onZIndexChange!(id, 'front')}    title="Trazer para frente" className="text-[9px] font-bold w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500 transition-colors">⇈</button>
+            <button onClick={() => actions.onZIndexChange!(id, 'back')}     title="Enviar para trás"  className="text-[9px] font-bold w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500 transition-colors">⇊</button>
+          </>)}
+          <div className="w-px h-4 bg-gray-200 mx-0.5" />
           <button
             onClick={() => actions.onDelete(id)}
             title="Excluir"
