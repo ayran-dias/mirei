@@ -1204,6 +1204,7 @@ function Canvas({ initialNodes, initialEdges, isEditor: isEditorProp, initialVie
           fitViewOptions={{ padding: 0.3 }}
           defaultViewport={initialViewport}
           className="bg-[#FAFAFA]"
+          proOptions={{ hideAttribution: true }}
         >
           <Background gap={24} size={1} color="#e8e8e8" />
           <Controls showInteractive={false} />
@@ -1213,10 +1214,10 @@ function Canvas({ initialNodes, initialEdges, isEditor: isEditorProp, initialVie
               const s = (n.data as RoadmapCardData)?.status
               if (s === 'done') return '#00461e'
               if (s === 'in-progress') return '#00d700'
-              if (s === 'planned') return '#1D9E75'
+              if (s === 'planned') return '#ef4444'
               return '#d1d5db'
             }}
-            style={{ borderRadius: 8, border: '1px solid #e5e7eb' }}
+            style={{ borderRadius: 8, border: '1px solid #e5e7eb', width: 100, height: 75 }}
           />
         </ReactFlow>
 
