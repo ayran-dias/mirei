@@ -298,6 +298,7 @@ function Canvas({ initialNodes, initialEdges, isEditor: isEditorProp, initialVie
   const [colorPickerTarget, setColorPickerTarget] = useState<{
     targetId: string
     targetType: 'node' | 'edge'
+    colorKey?: string
     position: { x: number; y: number }
   } | null>(null)
 
@@ -463,12 +464,13 @@ function Canvas({ initialNodes, initialEdges, isEditor: isEditorProp, initialVie
   }, [])
 
   const handleColorChange = useCallback((targetId: string, targetType: 'node' | 'edge', color: string | null) => {
+    const key = colorPickerTarget?.colorKey ?? 'color'
     if (targetType === 'node') {
       setNodes(ns => {
         const updated = ns.map(n => {
           if (n.id !== targetId) return n
           const d = { ...(n.data as object) } as Record<string, unknown>
-          if (color) d.color = color; else delete d.color
+          if (color) d[key] = color; else delete d[key]
           return { ...n, data: d as unknown as Record<string, unknown> }
         })
         triggerSave(updated, edges)
@@ -489,10 +491,11 @@ function Canvas({ initialNodes, initialEdges, isEditor: isEditorProp, initialVie
     setColorPickerTarget(null)
   }, [setNodes, setEdges, edges, triggerSave])
 
-  const handleOpenColorPicker = useCallback((nodeId: string, rect: DOMRect) => {
+  const handleOpenColorPicker = useCallback((nodeId: string, rect: DOMRect, colorKey?: string) => {
     setColorPickerTarget({
       targetId: nodeId,
       targetType: 'node',
+      colorKey,
       position: { x: rect.left, y: rect.bottom + 4 },
     })
   }, [])
@@ -1213,6 +1216,8 @@ function Canvas({ initialNodes, initialEdges, isEditor: isEditorProp, initialVie
           defaultViewport={initialViewport}
           className="bg-[#FAFAFA]"
           proOptions={{ hideAttribution: true }}
+          minZoom={0.05}
+          maxZoom={4}
         >
           <Background gap={24} size={1} color="#e8e8e8" />
           <Controls showInteractive={false} />
@@ -1360,7 +1365,7 @@ function Canvas({ initialNodes, initialEdges, isEditor: isEditorProp, initialVie
           <ColorPicker
             value={
               colorPickerTarget.targetType === 'node'
-                ? (nodes.find(n => n.id === colorPickerTarget.targetId)?.data as { color?: string })?.color
+                ? (nodes.find(n => n.id === colorPickerTarget.targetId)?.data as Record<string, string>)?.[colorPickerTarget.colorKey ?? 'color']
                 : (edges.find(e => e.id === colorPickerTarget.targetId)?.data as { color?: string })?.color
             }
             customColors={customColors}

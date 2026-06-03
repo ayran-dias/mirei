@@ -9,7 +9,7 @@ export interface RoadmapActions {
   onFrameToggle: (frameId: string, nodes: Node[], setNodes: (updater: (ns: Node[]) => Node[]) => void) => void
   onFrameTitleChange: (frameId: string, title: string, nodes: Node[], setNodes: (updater: (ns: Node[]) => Node[]) => void, titleSize?: number) => void
   onTableChange?: (nodeId: string, data: RoadmapTableData) => void
-  onOpenColorPicker: (nodeId: string, rect: DOMRect) => void
+  onOpenColorPicker: (nodeId: string, rect: DOMRect, colorKey?: string) => void
 }
 
 export const RoadmapActionsContext = createContext<RoadmapActions | null>(null)

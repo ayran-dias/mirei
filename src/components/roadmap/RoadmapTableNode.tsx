@@ -1,5 +1,5 @@
 import { memo, useState, useCallback, useRef, useEffect } from 'react'
-import { Handle, Position, NodeResizer, type NodeProps, useUpdateNodeInternals } from '@xyflow/react'
+import { Handle, Position, NodeResizer, NodeToolbar, type NodeProps, useUpdateNodeInternals } from '@xyflow/react'
 import { useRoadmapActions } from './RoadmapActionsContext'
 
 export interface RoadmapTableColumn {
@@ -21,6 +21,8 @@ export interface RoadmapTableData {
   title?: string
   columns: RoadmapTableColumn[]
   rows: RoadmapTableRow[]
+  headerColor?: string
+  stripeColor?: string
 }
 
 // ── Inline editable text cell ─────────────────────────────────────────────────
@@ -87,6 +89,10 @@ function RoadmapTableNode({ id, data, selected }: NodeProps) {
   const actions = useRoadmapActions()
   const updateNodeInternals = useUpdateNodeInternals()
   const [hovered, setHovered] = useState(false)
+  const headerColor = d.headerColor ?? '#00461e'
+  const stripeColor = d.stripeColor ?? '#f5fff5'
+  const headerBtnRef = useRef<HTMLButtonElement>(null)
+  const stripeBtnRef = useRef<HTMLButtonElement>(null)
 
   // Recalculate handles when rows change
   useEffect(() => {
@@ -153,6 +159,32 @@ function RoadmapTableNode({ id, data, selected }: NodeProps) {
         handleClassName="!w-2 !h-2 !bg-[#00461e] !border-[#00461e]"
       />
 
+      {actions && (
+        <NodeToolbar isVisible={!!selected} position={Position.Top}>
+          <div className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-lg shadow-lg px-1.5 py-1">
+            <button
+              ref={headerBtnRef}
+              onClick={() => headerBtnRef.current && actions.onOpenColorPicker(id, headerBtnRef.current.getBoundingClientRect(), 'headerColor')}
+              title="Cor do cabeçalho"
+              className="flex items-center gap-1 text-[10px] font-bold px-2 h-6 rounded hover:bg-gray-100 text-gray-600 transition-colors"
+            >
+              <span className="w-3 h-3 rounded-sm ring-1 ring-black/15 shrink-0" style={{ background: headerColor }} />
+              Header
+            </button>
+            <div className="w-px h-4 bg-gray-200" />
+            <button
+              ref={stripeBtnRef}
+              onClick={() => stripeBtnRef.current && actions.onOpenColorPicker(id, stripeBtnRef.current.getBoundingClientRect(), 'stripeColor')}
+              title="Cor das linhas alternadas"
+              className="flex items-center gap-1 text-[10px] font-bold px-2 h-6 rounded hover:bg-gray-100 text-gray-600 transition-colors"
+            >
+              <span className="w-3 h-3 rounded-sm ring-1 ring-black/15 shrink-0" style={{ background: stripeColor }} />
+              Linhas
+            </button>
+          </div>
+        </NodeToolbar>
+      )}
+
       <Handle
         id="top"
         type="target"
@@ -169,10 +201,10 @@ function RoadmapTableNode({ id, data, selected }: NodeProps) {
       <div
         className="w-full h-full flex flex-col font-['Manrope',sans-serif] overflow-hidden"
         style={{
-          border: `2px solid #00461e`,
+          border: `2px solid ${headerColor}`,
           borderRadius: 8,
           background: '#fff',
-          boxShadow: selected ? '0 0 0 2px rgba(0,70,30,0.15)' : '0 1px 4px rgba(0,0,0,0.08)',
+          boxShadow: selected ? `0 0 0 2px ${headerColor}26` : '0 1px 4px rgba(0,0,0,0.08)',
           minWidth: 180,
         }}
         onMouseEnter={() => setHovered(true)}
@@ -180,7 +212,7 @@ function RoadmapTableNode({ id, data, selected }: NodeProps) {
       >
         {/* Optional title above table */}
         {(d.title !== undefined) && (
-          <div className="px-2 pt-1.5 pb-1 border-b border-[#00461e]/20 bg-[#f5fff5]">
+          <div className="px-2 pt-1.5 pb-1 border-b border-black/10" style={{ background: stripeColor }}>
             {isEditor ? (
               <EditableCell
                 value={d.title ?? ''}
@@ -205,7 +237,8 @@ function RoadmapTableNode({ id, data, selected }: NodeProps) {
                 {d.columns.map((col, ci) => (
                   <th
                     key={ci}
-                    className="bg-[#00461e] text-white font-semibold px-2 py-1 text-left"
+                    className="text-white font-semibold px-2 py-1 text-left"
+                    style={{ background: headerColor }}
                     style={{ fontSize: 11 }}
                   >
                     {isEditor ? (
@@ -225,7 +258,7 @@ function RoadmapTableNode({ id, data, selected }: NodeProps) {
               {d.rows.map((row, ri) => (
                 <tr
                   key={row.id}
-                  className={ri % 2 === 0 ? 'bg-white' : 'bg-[#f5fff5]'}
+                  style={{ background: ri % 2 === 0 ? '#ffffff' : stripeColor }}
                 >
                   {/* Delete button */}
                   {isEditor && (
@@ -293,7 +326,7 @@ function RoadmapTableNode({ id, data, selected }: NodeProps) {
 
         {/* Footer: add row */}
         {isEditor && (
-          <div className="border-t border-[#00461e]/20 bg-[#f5fff5]">
+          <div className="border-t border-black/10" style={{ background: stripeColor }}>
             <button
               onClick={e => { e.stopPropagation(); addRow() }}
               className="nodrag nopan w-full flex items-center justify-center gap-1 py-1 text-[10px] font-bold text-[#00461e]/60 hover:text-[#00461e] hover:bg-[#00461e]/5 transition-colors"
