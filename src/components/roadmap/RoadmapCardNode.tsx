@@ -190,7 +190,7 @@ function RoadmapCardNode({ id, data, selected }: NodeProps) {
 
         {/* Description — only when expanded */}
         {expanded && d.description && (
-          <p className={`text-[11px] mt-1.5 leading-relaxed ${isDone ? 'text-white/60' : 'text-gray-500'}`}>
+          <p className={`text-[11px] mt-1.5 leading-relaxed whitespace-pre-wrap ${isDone ? 'text-white/60' : 'text-gray-500'}`}>
             {d.description}
           </p>
         )}
