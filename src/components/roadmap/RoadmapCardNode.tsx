@@ -9,6 +9,7 @@ export interface RoadmapCardData {
   category: 'feature' | 'ajuste' | 'nova-entrega' | 'longo-prazo'
   expanded?: boolean
   color?: string
+  align?: 'left' | 'center' | 'right'
 }
 
 const STATUS_STYLE: Record<string, {
@@ -79,6 +80,7 @@ function RoadmapCardNode({ id, data, selected }: NodeProps) {
   const c = CAT_STYLE[d.category] || CAT_STYLE.feature
   const isDone = d.status === 'done'
   const customColor = d.color
+  const textAlign = d.align ?? 'left'
   const actions = useRoadmapActions()
   const updateNodeInternals = useUpdateNodeInternals()
   const colorBtnRef = useRef<HTMLButtonElement>(null)
@@ -184,13 +186,13 @@ function RoadmapCardNode({ id, data, selected }: NodeProps) {
         </div>
 
         {/* Title — always visible */}
-        <p className={`text-sm font-bold leading-tight mt-1.5 ${isDone ? 'text-[#c7ff3d]' : 'text-[#1A1A1A]'}`}>
+        <p className={`text-sm font-bold leading-tight mt-1.5 ${isDone ? 'text-[#c7ff3d]' : 'text-[#1A1A1A]'}`} style={{ textAlign }}>
           {d.title}
         </p>
 
         {/* Description — only when expanded */}
         {expanded && d.description && (
-          <p className={`text-[11px] mt-1.5 leading-relaxed whitespace-pre-wrap ${isDone ? 'text-white/60' : 'text-gray-500'}`}>
+          <p className={`text-[11px] mt-1.5 leading-relaxed whitespace-pre-wrap ${isDone ? 'text-white/60' : 'text-gray-500'}`} style={{ textAlign }}>
             {d.description}
           </p>
         )}
