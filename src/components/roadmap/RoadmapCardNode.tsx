@@ -79,7 +79,7 @@ function RoadmapCardNode({ id, data, selected }: NodeProps) {
 
       <div
         className={`${customColor ? '' : s.bg} ${customColor ? '' : s.border} border-2 rounded-xl px-3 py-2.5 shadow-sm cursor-grab active:cursor-grabbing font-['Manrope',sans-serif] transition-all duration-150`}
-        style={{ width: 230, minHeight: expanded ? 120 : 60, ...(customColor ? { borderColor: customColor, backgroundColor: customColor + '1a' } : {}) }}
+        style={{ width: '100%', minHeight: expanded ? 120 : 60, ...(customColor ? { borderColor: customColor, backgroundColor: customColor + '1a' } : {}) }}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
       >

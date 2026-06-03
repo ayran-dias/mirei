@@ -707,7 +707,7 @@ function Canvas({ initialNodes = [], initialEdges = [], isEditor: isEditorProp =
       return { x: -viewport.x / viewport.zoom + 400, y: -viewport.y / viewport.zoom + 200 }
     })()
     const id = `card-${Date.now()}`
-    const newNode: Node = { id, type: 'card', position: pos, data }
+    const newNode: Node = { id, type: 'card', position: pos, data, style: { width: 230 } }
     setNodes(ns => {
       const updated = [...ns, newNode]
       triggerSave(updated, edges)
