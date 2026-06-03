@@ -20,7 +20,7 @@ const fmtPct = (v: string | null) => {
   if (!v || v === 'null') return '—'
   const n = parseFloat(v)
   if (isNaN(n)) return v
-  return (n * 100).toFixed(2) + '%'
+  return (n * 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%'
 }
 
 const faixaColor = (faixa: string | null) => {
@@ -32,7 +32,7 @@ const faixaColor = (faixa: string | null) => {
 function InfoPair({ label, value, className = '' }: { label: string; value: string; className?: string }) {
   return (
     <div className="flex">
-      <span className="bg-[#00461e] text-white text-xs font-medium px-3 py-1.5 min-w-[140px]">{label}</span>
+      <span className="bg-[#00461e] text-white text-xs font-medium px-2 md:px-3 py-1.5 min-w-[110px] md:min-w-[140px] flex-shrink-0">{label}</span>
       <span className={`text-xs px-3 py-1.5 bg-gray-50 flex-1 ${className}`}>{value}</span>
     </div>
   )
@@ -66,8 +66,8 @@ export default function StatusCredito({ data, status }: Props) {
   const ofertas = Array.from(ofertasMap.values())
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-[#c8d2c8] p-6 space-y-6">
-      <h3 className="font-semibold text-gray-800 text-lg">Status Crédito</h3>
+    <div className="bg-white rounded-2xl shadow-sm border border-[#c8d2c8] p-4 md:p-6 space-y-6">
+      <h3 className="font-semibold text-gray-800 text-lg">Status Credito</h3>
 
       {/* Status da Conta + Oferta Safra Atual */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

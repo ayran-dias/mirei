@@ -4,13 +4,13 @@ autor: Ayran Dias
 data_criacao: 2026-05-20
 baseado_em: null
 skills_usadas: [novo-estudo]
-queries_criadas: 7
+queries_criadas: 12
 queries_do_catalogo_reutilizadas: 0
 inputs_recebidos: 10
-sumario: "Felicia 360: dashboard GAS+React que unifica credito, adquirencia e banking por CNPJ. V3.0 live com 7 queries BQ, 10 componentes React, identidade visual Stone, monitor admin real-time. 42 deploys ate 21/05."
+sumario: "Mesa Banco @v273: Felicia 360 + Enterprise + GM + Simulador K-Giro + Repositorio de Estudos. Credito Lifetime VP resolvido (fix mount + aux tables docs+npv, zero cross-project). Monitor com pagina por usuario. GTM analytics. Doc Carteiras. Infra BQ: docs_enterprise/gm (seg-qua-sex), npv_kgiro_por_documento (toda seg), resumo_conta_historico_company (todo dom). IAM Secret Manager resolvido."
 tags: [credito, adquirencia, dashboard, google-apps-script, vida-economica, bundle, tomada-decisao, react, recharts, bigquery]
 revisado_por: null
-status: em_andamento
+status: concluido
 ---
 
 ## Objetivo
@@ -89,6 +89,7 @@ Validado que `npv_kgiro` tem campo `reference_date` e `t` (período), permitindo
 - Sempre atualizar com `-i <ID>` para não criar URLs novas
 - Comando: `clasp deploy -i AKfycbxTNqpYwEBxdXLg-qmcNGjM-agAFAeLAt4YEgZOvh7m7KnRaLwuMtuGmgg__h4TrrmI -d "descrição"`
 - **Projeto GAS:** `1qKErmyBogImZKfioaCkDPcowFYkTGQnFDQbpZk1kSKe_zXk_N0vqthGU`
+- **Versao atual:** v227 (deployada 2026-06-01)
 
 ### Gotcha: campo Gateway
 - O campo correto na `PnL_Dashs_part` é `Rcta_gateway` (não `Rcta_gateway_sum`). Erro causou query 400 e "Sem dados" no frontend.
@@ -110,6 +111,8 @@ Validado que `npv_kgiro` tem campo `reference_date` e `t` (período), permitindo
 | **CollapsibleCard** | Componente reutilizavel: header verde/azul com seta minimizar/maximizar |
 | **InfoTooltip** | Popup "?" com definicoes de metricas |
 | **AdminMonitor** | Monitor real-time visivel so para admin. Heartbeat 30s, tabs online/historico, auto-refresh 15s |
+| **NavbarMobile** | Secoes ACOMPANHAMENTOS / FERRAMENTAS / REPOSITORIO para navegacao em telas pequenas |
+| **RoadmapSection** | Secao colapsavel "Acompanhamentos" com cards Enterprise e Grupos Marca |
 
 ## Skill criado: /revisar-proposta
 
@@ -123,16 +126,46 @@ Time de revisão crítica para implementações. Estrutura em `.claude/skills/re
 
 Fluxo: Demanda → CTO → Consultores (paralelo) → CTO consolida → Financeiro → Se aprovado → Briefing → Engenheiro
 
-## Proximos passos
+## Melhorias UI entregues (2026-05-29, tasks #19-#31, v197)
+
+- [x] #19: InfoTooltip — removido "Roadmap →", mantido so "Documentacao →"
+- [x] #20: Formatacao pt-BR em todos os componentes (separador milhar `.`, decimal `,`)
+- [x] #21: Ofertas de Credito — reordenado: Cartao → Desembolso → Demais Ofertas (colapsavel)
+- [x] #22: FluxoCaixa — Net CF e Margem em destaque (opacidade 1, strokeWidth 2.5), demais linhas em 0.4
+- [x] #23: InfoCliente — campo MCC mostra so numero, pill "ver" revela nome completo
+- [x] #24: Navbar mobile — secoes ACOMPANHAMENTOS / FERRAMENTAS / REPOSITORIO
+- [x] #25: Rotulos FluxoCaixa — `isKeyPoint()` para first/last/inflexoes nos highlight lines
+- [x] #26: Tabela Detalhado Mensal — `font-mono` → `font-sans` nas celulas numericas
+- [x] #27: Tooltips FluxoCaixa e InsightsAdq — `font-mono` → `font-sans`
+- [x] #30: Detalhado Mensal — filtro de meses com pills toggle + Todos/Nenhum
+- [x] #31: Roadmap — secao colapsavel "Acompanhamentos" com cards Enterprise e Grupos Marca
+
+## Queries adicionadas (sessão 2026-06-01)
+
+| Função | Fonte BQ | O que retorna |
+|--------|----------|---------------|
+| `getBankingHistorico(doc)` | `Dias_PnL.resumo_conta_historico` | 36 campos de saldos e receitas mensais (24 meses) |
+| `getActiveOffers(stonecode)` | Active Offers API (Marcopolo) | Condições MDR/CET, RAV, Smart Fees por stonecode |
+| `getSFCredentials_()` | Secret Manager / ScriptProperties | Credenciais SF (username, password, token) |
+
+**Tabela nova:** `Dias_PnL.resumo_conta_historico` — 26 colunas, Stone+PagarMe, jan/2024→atual
+- PARTITION BY reference_month + CLUSTER BY document
+- MERGE v4 otimizado: 0.31 TB (~$2/run) com partition pruning
+- Scheduled query: todo domingo 03:00 UTC
+
+## Proximos passos (backlog)
 
 - [x] Tabela detalhada mensal de adquirencia com 19 colunas e filtro de colunas
 - [x] Card Banco: Media 3m (saldo conta, reservas, boletos, volume)
 - [x] Resumo de desembolsos no card credito (qtd, total, adimplencia)
-- [x] UI Stone brand (header verde, cards com cabeçalho colorido, CollapsibleCard)
+- [x] UI Stone brand (header verde, cards com cabecalho colorido, CollapsibleCard)
 - [x] Monitor admin real-time com heartbeat
 - [x] Zoom via scroll no grafico + linha "Hoje"
 - [x] Tooltips "?" com definicoes de metricas
 - [x] Fix media 3m (excluir mes aberto, ordem correta)
+- [ ] Simulador de adquirencia no frontend (motor JS) — arquitetura definida, construcao nao iniciada
+- [x] Unificar estudos 04-30 e 05-20 em pasta unica
+- [ ] Roadmap: seed de cards com avanos (task #34)
 - [ ] Brainstorming academico: frameworks de financas bancarias (CLV, RAROC, unit economics)
 - [ ] Secao de adquirencia detalhada: condicoes MDR por bandeira, share performado, equipamentos
 - [ ] Projecao do motor Adq_Banking (simulado vs. realizado)
@@ -179,3 +212,14 @@ Fluxo: Demanda → CTO → Consultores (paralelo) → CTO consolida → Financei
 - 2026-05-21 | Ayran Dias | v3.0 — Card Banco: Media 3m (saldo, reservas, boletos, volume)
 - 2026-05-21 | Ayran Dias | v3.0.3 — Travessoes trocados por dois pontos em todos os titulos
 - 2026-05-21 | Ayran Dias | Documentacao tecnica gerada (felicia-360-documentacao-tecnica.docx)
+- 2026-05-29 | Ayran Dias | v197 — Tasks #19-#31: formatacao pt-BR, reordenacao Ofertas (Cartao>Desembolso>Demais), destaque FluxoCaixa (Net CF/Margem), pill "ver" MCC, navbar mobile, rotulos isKeyPoint, font-sans Detalhado/Tooltips, filtro pills meses, secao Roadmap Acompanhamentos
+- 2026-05-29 | Ayran Dias | v197 encerrado (status: concluido — fase 1)
+- 2026-06-01 | Ayran Dias | Reaberto para fase 2: Banking cards + BQ + Secret Manager
+- 2026-06-01 | Ayran Dias | v202-v227 — Banking Insights+Detalhado (tabela transposta), resumo_conta_historico (76M linhas, MERGE v4), Secret Manager (getSFCredentials_), Condições Stonecodes (Active Offers API), Roadmap edges delete+reconect, navbar Title Case fix, summary cards compacto, InfoCliente blur preview, FluxoCaixa -20%, DocFelicia360 banking
+- 2026-06-01 | Ayran Dias | Ajuste de Ofertas Auth.gs migrado para Secret Manager (mesmo secret Chaves-sf)
+- 2026-06-01 | Ayran Dias | Estudo 2026-04-30-mesa-banco unificado aqui (analises/simulador/, documentos/)
+- 2026-06-01 | Ayran Dias | Estudo encerrado (status: concluido)
+- 2026-06-02 | Ayran Dias | Reaberto fase 3: Repositório de Estudos, gap GM/Pagarme, Simulador K-Giro overhaul, Home 3 repos
+- 2026-06-02 | Ayran Dias | v228-v262 — Simulador K-Giro (motor completo, validado 17/17), Roadmap overhaul (frames/edges/table nodes), Home cards+badges, gap Enterprise vs GM documentado, Crédito Lifetime VP (card + paginação), Base Geral heatmap+sort+colunas dinâmicas, resumo_conta_historico_company (46.5M rows), IAM Secret Manager resolvido
+- 2026-06-03 | Ayran Dias | v263-v273 — Crédito VP fix completo (prevFilterKey null, docs aux + npv_kgiro_por_documento), Monitor fix (page no return + 13 labels), GTM analytics (GTM-NWPLWBNN), filtro Grupo próprio no card VP, DocCarteiras, DocFelicia360 botão, Repositório de Estudos v9
+- 2026-06-03 | Ayran Dias | Versão atual: @v273/@276. Estudo em andamento.

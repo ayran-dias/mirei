@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.maestro-infra
+.maestro-mode
+*.jpg
+*.png
+inputs/
+analises/
+scripts/

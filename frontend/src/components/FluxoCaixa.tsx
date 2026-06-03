@@ -7,16 +7,26 @@ import type { PnlAdquirenciaRow, FluxoCreditoRow } from '../types'
 import { CardSkeleton } from './Skeleton'
 import CollapsibleCard from './CollapsibleCard'
 import InfoTooltip from './InfoTooltip'
+const F360_NAV = [{ label: 'Documentação →', page: 'doc-felicia360' }]
 
 const fmt = (v: number) => `R$ ${v.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`
 
+const isKeyPoint = (idx: number, dataKey: string, chartData: any[]): boolean => {
+  if (idx === 0 || idx === chartData.length - 1) return true
+  const prev = chartData[idx - 1]?.[dataKey]
+  const curr = chartData[idx]?.[dataKey]
+  const next = chartData[idx + 1]?.[dataKey]
+  if (typeof prev !== 'number' || typeof curr !== 'number' || typeof next !== 'number') return false
+  return (curr > prev && curr > next) || (curr < prev && curr < next)
+}
+
 const LINES = [
-  { key: 'receita_juros', name: 'Receita Juros (Cred)', color: '#93c5fd', group: 'credito', dashed: true },
-  { key: 'nii_credito', name: 'NII (Cred)', color: '#3b82f6', group: 'credito', dashed: true },
-  { key: 'risk_adj_nii', name: 'Risk Adj NII (Cred)', color: '#1e40af', group: 'credito', dashed: true },
-  { key: 'net_cf', name: 'Net CF (Cred)', color: '#6d28d9', group: 'credito' },
-  { key: 'receita_net_cof', name: 'Receita nCOF (Adq)', color: '#34d399', group: 'adquirencia', dashed: true },
-  { key: 'margem_adq', name: 'Margem (Adq)', color: '#059669', group: 'adquirencia' },
+  { key: 'receita_juros', name: 'Receita Juros (Cred)', color: '#93c5fd', group: 'credito', dashed: true, highlight: false },
+  { key: 'nii_credito', name: 'NII (Cred)', color: '#3b82f6', group: 'credito', dashed: true, highlight: false },
+  { key: 'risk_adj_nii', name: 'Risk Adj NII (Cred)', color: '#1e40af', group: 'credito', dashed: true, highlight: false },
+  { key: 'net_cf', name: 'Net CF (Cred)', color: '#6d28d9', group: 'credito', highlight: true },
+  { key: 'receita_net_cof', name: 'Receita nCOF (Adq)', color: '#34d399', group: 'adquirencia', dashed: true, highlight: false },
+  { key: 'margem_adq', name: 'Margem (Adq)', color: '#059669', group: 'adquirencia', highlight: true },
 ] as const
 
 interface Props {
@@ -45,7 +55,7 @@ function CustomTooltip({ active, payload, label }: any) {
       {payload.map((entry: any, i: number) => (
         <div key={i} className="flex justify-between gap-4">
           <span style={{ color: entry.color }}>{entry.name}</span>
-          <span className="font-mono">{fmt(entry.value)}</span>
+          <span className="font-sans">{fmt(entry.value)}</span>
         </div>
       ))}
     </div>
@@ -162,7 +172,7 @@ export default function FluxoCaixa({ pnl, pnlStatus, credito, creditoStatus, def
       defaultOpen={defaultOpen}
       headerRight={
         <div className="flex items-center gap-2">
-          <span className="text-xs text-white/60">Scroll para zoom · Arraste para navegar</span>
+          <span className="text-xs text-white/60 hidden sm:inline">Scroll para zoom · Arraste para navegar</span>
           <InfoTooltip lines={[
             'Receita Juros: Receita bruta de juros do empréstimo (financial_income_net)',
             'NII: Receita Juros - Funding Cost - Capital Cost → margem de intermediação',
@@ -170,7 +180,7 @@ export default function FluxoCaixa({ pnl, pnlStatus, credito, creditoStatus, def
             'Net CF: Risk Adj NII - Custo Variável → fluxo de caixa líquido do período',
             'Receita nCOF (Adq): Receita de adquirência líquida de COF',
             'Margem (Adq): Receita nCOF - COGs de adquirência',
-          ]} />
+          ]} navLinks={F360_NAV} />
         </div>
       }
     >
@@ -243,13 +253,13 @@ export default function FluxoCaixa({ pnl, pnlStatus, credito, creditoStatus, def
           el.onwheel = (e) => e.preventDefault()
         }
       }}>
-      <ResponsiveContainer width="100%" height={420}>
+      <ResponsiveContainer width="100%" height={336}>
         <ComposedChart data={data} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis dataKey="mes" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
           <YAxis
             tick={{ fontSize: 11 }}
-            tickFormatter={(v: number) => v >= 1000 || v <= -1000 ? `${(v / 1000).toFixed(0)}k` : v.toFixed(0)}
+            tickFormatter={(v: number) => v >= 1000 || v <= -1000 ? `${(v / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}k` : v.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
           />
           <Tooltip content={<CustomTooltip />} />
           <ReferenceLine y={0} stroke="#999" strokeDasharray="2 2" />
@@ -280,7 +290,9 @@ export default function FluxoCaixa({ pnl, pnlStatus, credito, creditoStatus, def
           />
 
           {LINES.map(line => {
-            const withLabel = line.key === 'net_cf' || line.key === 'margem_adq'
+            const withLabel = line.highlight
+            const baseOpacity = line.highlight ? 1 : 0.4
+            const baseStrokeWidth = line.highlight ? 2.5 : 1
             return (
               <Line
                 key={line.key}
@@ -288,17 +300,25 @@ export default function FluxoCaixa({ pnl, pnlStatus, credito, creditoStatus, def
                 dataKey={line.key}
                 name={line.name}
                 stroke={line.color}
-                strokeWidth={2}
+                strokeWidth={baseStrokeWidth}
+                strokeOpacity={baseOpacity}
                 strokeDasharray={'dashed' in line && line.dashed ? '5 3' : undefined}
-                dot={withLabel ? { r: 2, fill: line.color } : false}
+                dot={withLabel ? { r: 2, fill: line.color, fillOpacity: baseOpacity } : false}
                 connectNulls
                 hide={!visibleLines.has(line.key)}
                 label={withLabel ? { content: (props: any) => {
-                  const { x, y, value } = props
+                  const { x, y, index, value } = props
+                  if (!line.highlight) {
+                    // Linhas auxiliares: apenas ultimo ponto
+                    if (index !== data.length - 1) return null
+                  } else {
+                    // Linhas highlight: primeiro + ultimo + inflexoes
+                    if (!isKeyPoint(index, line.key, data)) return null
+                  }
                   if (value === undefined || value === null) return null
-                  const v = Math.abs(value) >= 1e6 ? `${(value/1e6).toFixed(1)}M`
-                    : Math.abs(value) >= 1e3 ? `${(value/1e3).toFixed(0)}K` : value.toFixed(0)
-                  return <text x={x} y={y - 6} textAnchor="middle" fontSize={9} fill={line.color} fontWeight={600}>{v}</text>
+                  const v = Math.abs(value) >= 1e6 ? `${(value/1e6).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M`
+                    : Math.abs(value) >= 1e3 ? `${(value/1e3).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}K` : value.toLocaleString('pt-BR', { maximumFractionDigits: 0 })
+                  return <text x={x} y={y - 8} textAnchor="middle" fontSize={9} fill={line.color} fontWeight={600}>{v}</text>
                 }} : undefined}
               />
             )
@@ -306,6 +326,7 @@ export default function FluxoCaixa({ pnl, pnlStatus, credito, creditoStatus, def
         </ComposedChart>
       </ResponsiveContainer>
       </div>
+      <p className="text-[10px] text-amber-600/80 mt-2 italic">* A projeção futura sempre estima uma perda</p>
     </CollapsibleCard>
   )
 }

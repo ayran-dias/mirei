@@ -6,17 +6,20 @@ import {
 import type { PnlAdquirenciaRow, InsightsAdqRow } from '../types'
 import { CardSkeleton } from './Skeleton'
 import CollapsibleCard from './CollapsibleCard'
+import InfoTooltip from './InfoTooltip'
+const F360_NAV = [{ label: 'Documentação →', page: 'doc-felicia360' }]
 
 const fmtK = (v: number, d = 0) => {
   const a = Math.abs(v)
-  if (a >= 1e9) return `${(v / 1e9).toFixed(d || 1)}B`
-  if (a >= 1e6) return `${(v / 1e6).toFixed(d || 1)}M`
-  if (a >= 1e3) return `${(v / 1e3).toFixed(d || 0)}K`
-  return v.toFixed(d)
+  const loc = (n: number, decimals: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+  if (a >= 1e9) return `${loc(v / 1e9, d || 1)}B`
+  if (a >= 1e6) return `${loc(v / 1e6, d || 1)}M`
+  if (a >= 1e3) return `${loc(v / 1e3, d || 0)}K`
+  return loc(v, d)
 }
 const fmtK2 = (v: number) => fmtK(v, 2)
 const fmtR = (v: number) => `R$ ${v.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`
-const fmtPct = (v: number) => `${(v * 100).toFixed(1)}%`
+const fmtPct = (v: number) => `${(v * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
 const fmtMes = (m: string) => m && m.includes('-') ? m.split('-').reverse().join('/') : m
 const p = (v: string | null | undefined) => parseFloat(v ?? '0') || 0
 
@@ -28,7 +31,7 @@ function MiniTooltip({ active, payload, label, pct = false }: any) {
       {payload.map((e: any, i: number) => (
         <div key={i} className="flex justify-between gap-3">
           <span style={{ color: e.color ?? e.fill }}>{e.name}</span>
-          <span className="font-mono">{pct ? fmtPct(e.value / 100) : fmtR(e.value)}</span>
+          <span className="font-sans">{pct ? fmtPct(e.value / 100) : fmtR(e.value)}</span>
         </div>
       ))}
     </div>
@@ -46,6 +49,7 @@ const RECEITA_METRICS = [
   { key: 'rcta_antifraude',name: 'Rcta. Antifraude',  color: '#9900cc' },
   { key: 'rcta_transf',   name: 'Rcta. Transferência',color: '#e06600' },
   { key: 'rcta_setup',    name: 'Rcta. Setup',        color: '#cc0044' },
+  { key: 'delay_rcta',   name: 'Rcta. Delay',         color: '#f59e0b' },
 ]
 
 function MonthFilter({ months, selected, onChange }: {
@@ -95,6 +99,48 @@ function MonthFilter({ months, selected, onChange }: {
   )
 }
 
+function MetricFilter({ metrics, hidden, onChange }: {
+  metrics: typeof RECEITA_METRICS
+  hidden: Set<string>
+  onChange: (s: Set<string>) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+  const toggle = (key: string) => {
+    const next = new Set(hidden)
+    if (next.has(key)) next.delete(key); else next.add(key)
+    onChange(next)
+  }
+  const visibleCount = metrics.length - hidden.size
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="text-[10px] font-semibold px-2 py-0.5 rounded border border-[#00461e]/30 text-[#00461e] hover:bg-[#f0faf5] transition-colors flex items-center gap-1"
+      >
+        Métricas{hidden.size > 0 ? ` (${visibleCount}/${metrics.length})` : ''}
+        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-7 z-30 bg-white border border-gray-200 rounded-xl shadow-xl p-3 w-48 space-y-0.5">
+          {metrics.map(m => (
+            <label key={m.key} className="flex items-center gap-2 py-0.5 cursor-pointer hover:bg-gray-50 px-1 rounded">
+              <input type="checkbox" checked={!hidden.has(m.key)} onChange={() => toggle(m.key)} className="accent-[#00461e]" />
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: m.color }} />
+              <span className="text-[11px] text-gray-700">{m.name}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 interface Props {
   pnl: PnlAdquirenciaRow[] | null
   pnlStatus: string
@@ -116,6 +162,8 @@ export default function InsightsAdq({ pnl, pnlStatus, insights, insightsStatus, 
   })()
 
   const [selectedMonths, setSelectedMonths] = useState<Set<string>>(new Set(allMonths))
+  const [showLinhas, setShowLinhas] = useState(true)
+  const [hiddenMetrics, setHiddenMetrics] = useState<Set<string>>(new Set())
 
   // Sincronizar quando os dados chegam (inicializa com todos os meses)
   useEffect(() => {
@@ -184,9 +232,11 @@ export default function InsightsAdq({ pnl, pnlStatus, insights, insightsStatus, 
     RECEITA_METRICS.forEach(m => { row[m.key] = p((r as any)[m.key]) })
     return row
   })
+  // Métricas com dados (não-zero) e não ocultas pelo usuário
   const activeMetrics = RECEITA_METRICS.filter(m =>
     receitaData.some(row => (row[m.key] as number) !== 0)
   )
+  const visibleMetrics = activeMetrics.filter(m => !hiddenMetrics.has(m.key))
 
   // 4 — Share Performado (normalizado para somar exatamente 100)
   const shareData = insFiltered.map(r => {
@@ -204,9 +254,12 @@ export default function InsightsAdq({ pnl, pnlStatus, insights, insightsStatus, 
     <CollapsibleCard
       title="Adquirencia: Insights"
       defaultOpen={defaultOpen}
-      headerRight={allMonths.length > 0 ? (
-        <MonthFilter months={allMonths} selected={active} onChange={setSelectedMonths} />
-      ) : undefined}
+      headerRight={
+        <div className="flex items-center gap-2">
+          {allMonths.length > 0 && <MonthFilter months={allMonths} selected={active} onChange={setSelectedMonths} />}
+          <InfoTooltip navLinks={F360_NAV} variant="light" />
+        </div>
+      }
     >
       <p className="text-[10px] text-[#96a096] mb-4 italic">Passe o mouse na legenda para destacar uma métrica</p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -218,7 +271,7 @@ export default function InsightsAdq({ pnl, pnlStatus, insights, insightsStatus, 
             <ComposedChart data={tpvData} margin={{ top: 16, right: 8, bottom: 0, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e8f0e8" />
               <XAxis dataKey="mes" tickFormatter={fmtMes} {...axisProps} />
-              <YAxis tickFormatter={fmtK} tick={{ fontSize: 10 }} />
+              <YAxis tickFormatter={(v) => fmtK(v)} tick={{ fontSize: 10 }} />
               <Tooltip content={<MiniTooltip />} />
               <Legend wrapperStyle={{ fontSize: 10 }} {...lh} payload={[
                 { value: 'TPV', type: 'line', color: '#000' },
@@ -243,7 +296,7 @@ export default function InsightsAdq({ pnl, pnlStatus, insights, insightsStatus, 
             <ComposedChart data={margemData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e8f0e8" />
               <XAxis dataKey="mes" tickFormatter={fmtMes} {...axisProps} />
-              <YAxis tickFormatter={fmtK} tick={{ fontSize: 10 }} />
+              <YAxis tickFormatter={(v) => fmtK(v)} tick={{ fontSize: 10 }} />
               <Tooltip content={<MiniTooltip />} />
               <Legend wrapperStyle={{ fontSize: 10 }} {...lh} />
               {zeroLine}
@@ -259,31 +312,46 @@ export default function InsightsAdq({ pnl, pnlStatus, insights, insightsStatus, 
 
         {/* 3 — Linhas de Receita */}
         <div>
-          <p className="text-xs font-semibold text-[#505a50] uppercase tracking-wide mb-3">Linhas de Receita</p>
-          <ResponsiveContainer width="100%" height={200}>
-            <ComposedChart data={receitaData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e8f0e8" />
-              <XAxis dataKey="mes" tickFormatter={fmtMes} {...axisProps} />
-              <YAxis tickFormatter={fmtK} tick={{ fontSize: 10 }} />
-              <Tooltip content={<MiniTooltip />} />
-              <Legend wrapperStyle={{ fontSize: 10 }} {...lh} payload={[
-                { value: 'Receita nCOF', type: 'line', color: '#000' },
-                ...activeMetrics.map(m => ({ value: m.name, type: 'square' as const, color: m.color })),
-              ]} />
-              {zeroLine}
-              {activeMetrics.map((m, i) => (
-                <Bar key={m.key} dataKey={m.key} name={m.name} stackId="a" fill={m.color}
-                  opacity={op(m.name)}
-                  radius={i === activeMetrics.length - 1 ? [3, 3, 0, 0] : undefined}
-                  label={barFocusLabel(m.name, fmtK, ['#a5fa00','#d2f57d','#5cb800'].includes(m.color) ? '#1e281e' : 'white')}
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold text-[#505a50] uppercase tracking-wide">Linhas de Receita</p>
+            <div className="flex items-center gap-1.5">
+              {showLinhas && activeMetrics.length > 0 && (
+                <MetricFilter metrics={activeMetrics} hidden={hiddenMetrics} onChange={setHiddenMetrics} />
+              )}
+              <button
+                onClick={() => setShowLinhas(s => !s)}
+                className="text-[10px] font-semibold px-2 py-0.5 rounded border border-gray-200 text-gray-400 hover:text-gray-600 hover:border-gray-300 transition-colors"
+              >
+                {showLinhas ? 'Ocultar' : 'Mostrar'}
+              </button>
+            </div>
+          </div>
+          {showLinhas && (
+            <ResponsiveContainer width="100%" height={200}>
+              <ComposedChart data={receitaData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e8f0e8" />
+                <XAxis dataKey="mes" tickFormatter={fmtMes} {...axisProps} />
+                <YAxis tickFormatter={(v) => fmtK(v)} tick={{ fontSize: 10 }} />
+                <Tooltip content={<MiniTooltip />} />
+                <Legend wrapperStyle={{ fontSize: 10 }} {...lh} payload={[
+                  { value: 'Receita nCOF', type: 'line', color: '#000' },
+                  ...visibleMetrics.map(m => ({ value: m.name, type: 'square' as const, color: m.color })),
+                ]} />
+                {zeroLine}
+                {visibleMetrics.map((m, i) => (
+                  <Bar key={m.key} dataKey={m.key} name={m.name} stackId="a" fill={m.color}
+                    opacity={op(m.name)}
+                    radius={i === visibleMetrics.length - 1 ? [3, 3, 0, 0] : undefined}
+                    label={barFocusLabel(m.name, fmtK, ['#a5fa00','#d2f57d','#5cb800'].includes(m.color) ? '#1e281e' : 'white')}
+                  />
+                ))}
+                <Line dataKey="receita_ncof" name="Receita nCOF" stroke="#000" strokeWidth={2}
+                  dot={{ r: 2, fill: '#000' }} opacity={op('Receita nCOF')}
+                  label={{ formatter: fmtK, position: 'top', fontSize: 9, fill: '#222' }}
                 />
-              ))}
-              <Line dataKey="receita_ncof" name="Receita nCOF" stroke="#000" strokeWidth={2}
-                dot={{ r: 2, fill: '#000' }} opacity={op('Receita nCOF')}
-                label={{ formatter: fmtK, position: 'top', fontSize: 9, fill: '#222' }}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
+              </ComposedChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
         {/* 4 — Share Performado */}

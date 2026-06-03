@@ -127,6 +127,8 @@ export interface Afiliacao360 {
   tem_pix_banking: string | null
   tem_transferencia: string | null
   tem_seguro: string | null
+  tem_taxas_inteligentes: string | null
+  is_only_ton: string | null
   qtd_produtos_ativos: string | null
   ultima_atualizacao_oferta: string | null
   ultima_renegociacao: string | null
@@ -170,4 +172,40 @@ export interface FluxoCreditoRow {
   net_cf: string
   nii: string
   risk_adj_nii: string
+}
+
+// Tipo para o card "Banking: Insights" — gerado por getBankingHistorico(doc)
+// Fonte: sbj7ujlwjbsknn8v396xaahlf4ogck.Dias_PnL.resumo_conta_historico
+// Schema agrupado (~26 colunas) — campos granulares removidos e pré-agregados na tabela
+export interface BancoHistoricoRow {
+  mes: string                 // FORMAT_DATE('%Y-%m', reference_month)
+  document: string
+  // Saldos médios (AVG diário)
+  media_saldo_conta: string | null
+  media_saldo_conta_visao_cliente: string | null
+  media_saldo_reservas: string | null
+  media_saldo_raspa_conta: string | null
+  media_saldo_total: string | null
+  // Boletos — volume (SUM mensal)
+  qtd_boleto_emitido: string | null
+  qtd_boleto_liquidado: string | null
+  vlr_boleto_liquidado: string | null
+  // Seguros
+  receita_seguros: string | null
+  produtos_seguro: string | null
+  // Receitas banking (campos pré-agrupados)
+  receita_floating_sweep: string | null
+  receita_pix_pos: string | null
+  tpv_pix_pos: string | null
+  trx_pix_pos: string | null
+  receita_floating_conta_reserva: string | null   // floating conta + floating reserva (pré-agregado)
+  receita_interchange_cartao: string | null        // interchange débito + crédito (pré-agregado)
+  receita_cartao: string | null                    // receita cartão débito + crédito (pré-agregado)
+  receita_boleto: string | null
+  receita_juros_rotativo: string | null
+  receita_movimentacao: string | null              // TED + saque + recarga + cashout (pré-agregado)
+  receita_outros_cartao: string | null             // rebate visa + multa + colateral + spread internacional (pré-agregado)
+  gmv_cartao: string | null
+  receita_outros_banking: string | null
+  receita_floating_delayed: string | null
 }

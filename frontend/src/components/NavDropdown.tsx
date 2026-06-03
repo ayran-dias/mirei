@@ -22,7 +22,7 @@ function SubGroup({ item, onNavigate }: { item: NavItem; onNavigate: (page: stri
       onMouseLeave={() => { timeoutRef.current = setTimeout(() => setOpen(false), 150) }}
       className="relative"
     >
-      <div className="flex items-center justify-between px-4 py-2 text-xs text-white/50 font-semibold uppercase tracking-wider cursor-default select-none hover:bg-white/5">
+      <div className="flex items-center justify-between px-4 py-2 text-xs text-white/50 font-semibold tracking-wider cursor-default select-none hover:bg-white/5">
         {item.label}
         <svg className="w-3 h-3 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

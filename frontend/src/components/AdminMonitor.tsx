@@ -49,10 +49,19 @@ function sessionDuration(firstSeen: string | undefined): string {
 }
 
 const PAGE_LABELS: Record<string, string> = {
-  home:           'Início',
-  felicia360:     'Felícia 360',
-  enterprise:     'Enterprise',
-  'ajuste-ofertas': 'Ajuste de Ofertas',
+  home:                  'Início',
+  felicia360:            'Felícia 360',
+  enterprise:            'Enterprise',
+  'grupos-marca':        'Grupos Marca',
+  'mid-large':           'Mid-Large',
+  'ajuste-ofertas':      'Ajuste de Ofertas',
+  simuladores:           'Simuladores',
+  'simulador-credito':   'Simulador K-Giro',
+  'doc-felicia360':      'Doc Felícia 360',
+  'doc-simulador-kgiro': 'Doc Simulador K-Giro',
+  'roadmap-mesa-banco':  'Roadmap',
+  estudos:               'Estudos',
+  permissoes:            'Permissões',
 }
 
 function pageLabel(page: string | undefined): string {

@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react'
 import type { PnlAdquirenciaRow } from '../types'
 import { TableSkeleton } from './Skeleton'
 import CollapsibleCard from './CollapsibleCard'
+import InfoTooltip from './InfoTooltip'
+const F360_NAV = [{ label: 'Documentação →', page: 'doc-felicia360' }]
 
 const fmtN = (v: string | null) => {
   if (!v || v === 'null') return '—'
@@ -14,7 +16,7 @@ const fmtPct = (v: string | null) => {
   if (!v || v === 'null') return '—'
   const n = parseFloat(v)
   if (isNaN(n)) return '—'
-  return (n * 100).toFixed(2) + '%'
+  return (n * 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%'
 }
 
 const cellColor = (v: string | null) => {
@@ -141,7 +143,12 @@ export default function CardAdquirencia({ data, status, defaultOpen = false }: P
     <CollapsibleCard
       title="Adquirência: Detalhado Mensal"
       defaultOpen={defaultOpen}
-      headerRight={<ColumnFilter hiddenCols={hiddenCols} setHiddenCols={setHiddenCols} />}
+      headerRight={
+        <div className="flex items-center gap-2">
+          <ColumnFilter hiddenCols={hiddenCols} setHiddenCols={setHiddenCols} />
+          <InfoTooltip navLinks={F360_NAV} variant="light" />
+        </div>
+      }
     >
       <div className="overflow-x-auto rounded-lg">
         <table className="w-full text-xs whitespace-nowrap">
@@ -162,7 +169,7 @@ export default function CardAdquirencia({ data, status, defaultOpen = false }: P
                   return (
                     <td
                       key={c.key}
-                      className={`px-2 py-2 text-right font-mono ${cellColor(val)}`}
+                      className={`px-2 py-2 text-right font-sans ${cellColor(val)}`}
                     >
                       {c.format === 'pct' ? fmtPct(val) : fmtN(val)}
                     </td>

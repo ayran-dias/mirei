@@ -1,7 +1,9 @@
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, type ReactNode } from 'react'
 import type { StatusCreditoRow } from '../types'
 import { TableSkeleton } from './Skeleton'
 import CollapsibleCard from './CollapsibleCard'
+import InfoTooltip from './InfoTooltip'
+const F360_NAV = [{ label: 'Documentação →', page: 'doc-felicia360' }]
 
 const fmt = (v: string | null) => {
   if (!v || v === 'null' || v === 'None') return '—'
@@ -29,7 +31,7 @@ const fmtPct = (v: string | null) => {
   if (!v || v === 'null') return '—'
   const n = parseFloat(v)
   if (isNaN(n)) return v
-  return (n * 100).toFixed(2) + '%'
+  return (n * 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%'
 }
 
 const faixaColor = (faixa: string | null) => {
@@ -91,6 +93,21 @@ function StatusFilter({ allStatuses, hidden, setHidden }: { allStatuses: string[
   )
 }
 
+function SubSection({ title, defaultOpen = true, children }: { title: string; defaultOpen?: boolean; children: ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div>
+      <button onClick={() => setOpen(o => !o)} className="flex items-center gap-2 w-full text-left mb-2">
+        <svg className={`w-3 h-3 text-[#00461e]/50 transition-transform ${open ? 'rotate-0' : '-rotate-90'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+        <span className="text-xs font-bold text-[#00461e] uppercase tracking-wider">{title}</span>
+      </button>
+      {open && children}
+    </div>
+  )
+}
+
 interface Props {
   data: StatusCreditoRow[] | null
   status: string
@@ -115,13 +132,12 @@ export default function OfertasCredito({ data, status, defaultOpen = false }: Pr
   const ofertas = Array.from(ofertasMap.values())
 
   return (
-    <CollapsibleCard title="Ofertas de Crédito" color="blue" defaultOpen={defaultOpen}>
-      <div className="space-y-6">
+    <CollapsibleCard title="Ofertas de Crédito" color="blue" defaultOpen={defaultOpen} headerRight={<InfoTooltip navLinks={F360_NAV} variant="light" />}>
+      <div className="space-y-4">
 
       {/* Cartao */}
       {first.documento_dono && (
-        <div>
-          <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-3">Cartao</h4>
+        <SubSection title="Cartao" defaultOpen={true}>
           <div className="overflow-x-auto rounded-lg">
             <table className="w-full text-xs">
               <thead>
@@ -146,7 +162,47 @@ export default function OfertasCredito({ data, status, defaultOpen = false }: Pr
               </tbody>
             </table>
           </div>
-        </div>
+        </SubSection>
+      )}
+
+      {/* Desembolso (contratos ativos) */}
+      {ofertas.some(r => r.faixa_atraso_credito_ativo) && (
+        <SubSection title="Desembolso" defaultOpen={true}>
+          <div className="overflow-x-auto rounded-lg">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="px-2 py-2.5 text-right text-gray-600 font-semibold">Desembolso</th>
+                  <th className="px-2 py-2.5 text-left text-gray-600 font-semibold">Data</th>
+                  <th className="px-2 py-2.5 text-right text-gray-600 font-semibold">Tx. Juros</th>
+                  <th className="px-2 py-2.5 text-left text-gray-600 font-semibold">Vencimento</th>
+                  <th className="px-2 py-2.5 text-right text-gray-600 font-semibold">Parcelas</th>
+                  <th className="px-2 py-2.5 text-left text-gray-600 font-semibold">Faixa Atraso</th>
+                  <th className="px-2 py-2.5 text-right text-gray-600 font-semibold">Rating Cont.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ofertas.filter(r => r.faixa_atraso_credito_ativo).sort((a, b) => {
+                  const da = parseFloat(a.disbursement_date || '0')
+                  const db = parseFloat(b.disbursement_date || '0')
+                  return db - da
+                }).map((r, i) => (
+                  <tr key={i} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                    <td className="px-2 py-2 text-right">{fmt(r.disbursement_value)}</td>
+                    <td className="px-2 py-2">{fmtDate(r.disbursement_date)}</td>
+                    <td className="px-2 py-2 text-right">{fmtPct(r.tx_juros_mes__credito_ativo)}</td>
+                    <td className="px-2 py-2">{fmtDate(r.data_vencimento_credito_ativo)}</td>
+                    <td className="px-2 py-2 text-right">{r.qtd_parcelas_credito_ativo || '—'}</td>
+                    <td className={`px-2 py-2 font-medium ${faixaColor(r.faixa_atraso_credito_ativo)}`}>
+                      {r.faixa_atraso_credito_ativo || '—'}
+                    </td>
+                    <td className="px-2 py-2 text-right">{r.rating_contabilidade_credito_ativo ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </SubSection>
       )}
 
       {/* Demais Ofertas */}
@@ -160,9 +216,8 @@ export default function OfertasCredito({ data, status, defaultOpen = false }: Pr
             return db - da
           })
         return (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Demais Ofertas</h4>
+        <SubSection title="Demais Ofertas" defaultOpen={false}>
+          <div className="flex items-center justify-end mb-2">
             <StatusFilter allStatuses={allStatuses} hidden={hiddenStatuses} setHidden={setHiddenStatuses} />
           </div>
           <div className="overflow-x-auto rounded-lg">
@@ -198,50 +253,9 @@ export default function OfertasCredito({ data, status, defaultOpen = false }: Pr
             </table>
           </div>
           {filtered.length === 0 && <p className="text-gray-400 text-xs mt-2">Nenhuma oferta com os filtros selecionados</p>}
-        </div>
+        </SubSection>
         )
       })()}
-
-      {/* Desembolso (contratos ativos) */}
-      {ofertas.some(r => r.faixa_atraso_credito_ativo) && (
-        <div>
-          <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-3">Desembolso</h4>
-          <div className="overflow-x-auto rounded-lg">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="px-2 py-2.5 text-right text-gray-600 font-semibold">Desembolso</th>
-                  <th className="px-2 py-2.5 text-left text-gray-600 font-semibold">Data</th>
-                  <th className="px-2 py-2.5 text-right text-gray-600 font-semibold">Tx. Juros</th>
-                  <th className="px-2 py-2.5 text-left text-gray-600 font-semibold">Vencimento</th>
-                  <th className="px-2 py-2.5 text-right text-gray-600 font-semibold">Parcelas</th>
-                  <th className="px-2 py-2.5 text-left text-gray-600 font-semibold">Faixa Atraso</th>
-                  <th className="px-2 py-2.5 text-right text-gray-600 font-semibold">Rating Cont.</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ofertas.filter(r => r.faixa_atraso_credito_ativo).sort((a, b) => {
-                  const da = parseFloat(a.disbursement_date || '0')
-                  const db = parseFloat(b.disbursement_date || '0')
-                  return db - da
-                }).map((r, i) => (
-                  <tr key={i} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                    <td className="px-2 py-2 text-right">{fmt(r.disbursement_value)}</td>
-                    <td className="px-2 py-2">{fmtDate(r.disbursement_date)}</td>
-                    <td className="px-2 py-2 text-right">{fmtPct(r.tx_juros_mes__credito_ativo)}</td>
-                    <td className="px-2 py-2">{fmtDate(r.data_vencimento_credito_ativo)}</td>
-                    <td className="px-2 py-2 text-right">{r.qtd_parcelas_credito_ativo || '—'}</td>
-                    <td className={`px-2 py-2 font-medium ${faixaColor(r.faixa_atraso_credito_ativo)}`}>
-                      {r.faixa_atraso_credito_ativo || '—'}
-                    </td>
-                    <td className="px-2 py-2 text-right">{r.rating_contabilidade_credito_ativo ?? '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
       </div>
     </CollapsibleCard>
   )

@@ -199,6 +199,75 @@ const CARDS: CardDoc[] = [
     ],
   },
   {
+    id: 'banking-insights',
+    title: 'Banking: Insights',
+    category: 'BANKING · TENDÊNCIA',
+    preview: 'Evolução mensal dos saldos médios e receitas de banking do documento nos últimos 24 meses.',
+    context: 'Gráfico de barras empilhadas com as principais linhas de receita de banking (Floating Sweep, PIX POS, Interchange, Smart Fees, etc.) ao longo do tempo. Linha separada para Saldo Conta e Saldo Reservas. Receitas respondem ao filtro de Produtos (Stone / Pagar.me). Saldos e boletos são por conta (sempre consolidados).',
+    questions: [
+      'Como evoluíram as receitas de banking deste cliente nos últimos 2 anos?',
+      'O cliente tem Smart Fees ativo? Qual o desconto aplicado?',
+      'Qual é a tendência do saldo médio de conta e reservas?',
+    ],
+    gasFunctions: ['getBankingHistorico(doc, companies)'],
+    auxTable: {
+      name: 'sbj7ujlwjbsknn8v396xaahlf4ogck.Dias_PnL.resumo_conta_historico + fct_one_number_banking',
+      summary: 'Quando ambas as empresas selecionadas: usa resumo_conta_historico (pré-agregada, rápido). Quando filtrado por 1 empresa: query direta em fct_one_number_banking (receitas) + resumo_conta_historico (saldos/boletos).',
+    },
+    originalSources: [
+      { table: 'Dias_PnL.resumo_conta_historico', description: 'Saldos médios (dias úteis) e volume de boletos por documento e mês. Account-level, sempre consolidado.' },
+      { table: 'segment_core.fct_one_number_banking', description: 'Receitas de banking por documento, mês e company_name. Usado quando filtro de empresa está ativo.' },
+      { table: 'Dias_PnL.PnL_Dashs_part', description: 'Floating delayed (Smart Fees) por documento, mês e CompanyName.' },
+    ],
+    queryNotes: 'getBankingHistorico(doc, companies) retorna histórico de até 24 meses. Quando ambas as empresas selecionadas, usa tabela pré-agregada (rápido). Quando filtrado por 1 empresa, faz query direta em fct_one_number_banking com company_name. Saldos e boletos são account-level (sempre consolidados).',
+    fields: [
+      { dashLabel: 'Mês de referência', sourceField: 'reference_month', meaning: 'Mês de referência do registro (YYYY-MM).' },
+      { dashLabel: 'Saldo Conta', sourceField: 'media_saldo_conta_visao_cliente', meaning: 'Saldo em conta (inclui CDB) — média de dias úteis do mês.' },
+      { dashLabel: 'Saldo Reservas', sourceField: 'media_saldo_reservas', meaning: 'Saldo em reservas — média de dias úteis do mês.' },
+      { dashLabel: 'Receita Floating Sweep', sourceField: 'receita_floating_sweep', meaning: 'Receita de raspa-conta — maior linha de receita banking (~R$70MM/mês na base total).' },
+      { dashLabel: 'Receita PIX POS', sourceField: 'receita_pix_pos', meaning: 'Receita de PIX originado por POS (adquirência + banking).' },
+      { dashLabel: 'Floating Conta + Reserva', sourceField: 'receita_floating_conta_reserva', meaning: 'Receita de floating sobre saldo em conta e reservas.' },
+      { dashLabel: 'Interchange (débito + crédito)', sourceField: 'receita_interchange_cartao', meaning: 'Receita de interchange de débito e crédito.' },
+      { dashLabel: 'Taxas Inteligentes', sourceField: 'receita_floating_delayed', meaning: 'Receita de Smart Fees (delay payments). Fonte: PnL_Dashs_part com RevenueTypeName = \'floating_delayed\'.' },
+      { dashLabel: 'Condições Smart Fees', sourceField: 'smartFeeConditions', meaning: 'Objeto com delayDays, modalidades ativas e desconto aplicado. Null se cliente não tem Smart Fees.' },
+    ],
+  },
+  {
+    id: 'banking-detalhado',
+    title: 'Banking: Detalhado Mensal',
+    category: 'BANKING · SÉRIE TEMPORAL',
+    preview: 'Tabela com meses nas linhas e métricas de saldo, receita e volume de boletos nas colunas.',
+    context: 'Tabela transposta: cada linha é um mês (até 24 meses), cada coluna é uma métrica de banking. Seções expansíveis: Saldos Médios (AVG de dias úteis), Receitas (SUM mensal) e Boletos (Volume). Receitas respondem ao filtro de Produtos (Stone / Pagar.me). Saldos e boletos são por conta (sempre consolidados).',
+    questions: [
+      'Qual foi a receita de floating sweep em março/2025?',
+      'Quantos boletos este cliente emitiu nos últimos 7 meses?',
+      'O saldo médio está crescendo ou caindo?',
+    ],
+    gasFunctions: ['getBankingHistorico(doc, companies)'],
+    auxTable: {
+      name: 'resumo_conta_historico + fct_one_number_banking',
+      summary: 'Mesma fonte do Banking: Insights. Quando filtrado por empresa, receitas vêm de fct_one_number_banking; saldos/boletos sempre consolidados.',
+    },
+    originalSources: [
+      { table: 'Dias_PnL.resumo_conta_historico', description: 'Saldos médios e volume de boletos por documento e mês. Account-level, sempre consolidado.' },
+      { table: 'segment_core.fct_one_number_banking', description: 'Receitas de banking com filtro de company_name (quando ativo).' },
+    ],
+    queryNotes: 'getBankingHistorico(doc, companies) — mesma função do Banking: Insights. O frontend usa os mesmos dados mas renderiza em tabela transposta (mês x metrica) com secoes colapsaveis por grupo: Saldos, Receitas, Boletos.',
+    fields: [
+      { dashLabel: 'Mês de referência', sourceField: 'reference_month', meaning: 'Mês de referência do registro (YYYY-MM).' },
+      { dashLabel: 'Saldo Conta', sourceField: 'media_saldo_conta_visao_cliente', meaning: 'Saldo em conta (inclui CDB) — média de dias úteis do mês.' },
+      { dashLabel: 'Saldo Reservas', sourceField: 'media_saldo_reservas', meaning: 'Saldo em reservas — média de dias úteis do mês.' },
+      { dashLabel: 'Receita Floating Sweep', sourceField: 'receita_floating_sweep', meaning: 'Receita de raspa-conta.' },
+      { dashLabel: 'Receita PIX POS', sourceField: 'receita_pix_pos', meaning: 'Receita de PIX POS.' },
+      { dashLabel: 'Floating Conta + Reserva', sourceField: 'receita_floating_conta_reserva', meaning: 'Receita de floating sobre saldo em conta e reservas.' },
+      { dashLabel: 'Interchange (débito + crédito)', sourceField: 'receita_interchange_cartao', meaning: 'Receita de interchange.' },
+      { dashLabel: 'Taxas Inteligentes', sourceField: 'receita_floating_delayed', meaning: 'Receita de Smart Fees.' },
+      { dashLabel: 'Qtd. Boletos Emitidos', sourceField: 'qtd_boleto_emitido', meaning: 'Quantidade de boletos emitidos no mês.' },
+      { dashLabel: 'Qtd. Boletos Liquidados', sourceField: 'qtd_boleto_liquidado', meaning: 'Quantidade de boletos liquidados no mês.' },
+      { dashLabel: 'Valor Boletos Liquidados', sourceField: 'vlr_boleto_liquidado', meaning: 'Valor total liquidado em boletos no mês (R$).' },
+    ],
+  },
+  {
     id: 'ofertas-credito',
     title: 'Ofertas de Crédito',
     category: 'CRÉDITO · STATUS',
@@ -388,7 +457,11 @@ function CardSection({ card }: { card: CardDoc }) {
   )
 }
 
-export default function DocFelicia360() {
+interface Props {
+  onNavigate?: (page: string) => void
+}
+
+export default function DocFelicia360({ onNavigate }: Props) {
   return (
     <div className="min-h-screen bg-[#f5fff5]">
       <AnimatedHero className="px-6 py-12">
@@ -400,8 +473,27 @@ export default function DocFelicia360() {
       </AnimatedHero>
 
       <div className="max-w-4xl mx-auto px-6 py-8 space-y-3">
+
+        {/* Link para o Felícia 360 */}
+        <div className="flex items-center gap-3 bg-[#00461e] rounded-2xl px-5 py-4">
+          <svg className="w-5 h-5 text-[#c7ff3d] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <div className="flex-1 min-w-0">
+            <p className="text-[#c7ff3d] text-xs font-bold uppercase tracking-wider">Painel</p>
+            <p className="text-white/80 text-sm">Abrir Felícia 360</p>
+          </div>
+          <button
+            onClick={() => onNavigate?.('felicia360')}
+            className="shrink-0 bg-[#c7ff3d] text-[#00461e] text-xs font-bold px-4 py-2 rounded-xl hover:bg-[#d4ff5a] transition-colors"
+          >
+            Abrir →
+          </button>
+        </div>
+
         {CARDS.map(c => <CardSection key={c.id} card={c} />)}
       </div>
+
     </div>
   )
 }

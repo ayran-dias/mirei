@@ -1,5 +1,16 @@
 import { useState, useEffect } from 'react'
-import type { RoadmapCardData } from './RoadmapCardNode'
+import type { RoadmapCardData, CardShape } from './RoadmapCardNode'
+
+const SHAPES: { key: CardShape; label: string; svg: React.ReactNode }[] = [
+  { key: 'rect',          label: 'Retângulo',    svg: <rect x="1" y="1" width="22" height="16" rx="2" /> },
+  { key: 'rounded',       label: 'Arredondado',  svg: <rect x="1" y="1" width="22" height="16" rx="8" /> },
+  { key: 'diamond',       label: 'Decisão',      svg: <polygon points="12,1 23,9 12,17 1,9" /> },
+  { key: 'circle',        label: 'Círculo',      svg: <ellipse cx="12" cy="9" rx="11" ry="8" /> },
+  { key: 'parallelogram', label: 'Dados',        svg: <polygon points="5,1 23,1 19,17 1,17" /> },
+  { key: 'hexagon',       label: 'Hexágono',     svg: <polygon points="6,1 18,1 23,9 18,17 6,17 1,9" /> },
+  { key: 'triangle',      label: 'Triângulo',    svg: <polygon points="12,1 23,17 1,17" /> },
+  { key: 'cylinder',      label: 'Banco',        svg: <><ellipse cx="12" cy="4" rx="11" ry="3" /><path d="M1,4 L1,15 A11,3 0 0,0 23,15 L23,4" /></> },
+]
 
 interface Props {
   open: boolean
@@ -9,7 +20,7 @@ interface Props {
   onClose: () => void
 }
 
-const EMPTY: RoadmapCardData = { title: '', description: '', status: 'backlog', category: 'feature' }
+const EMPTY: RoadmapCardData = { title: '', description: '', status: 'backlog', category: 'feature', align: 'left' }
 
 export default function RoadmapEditModal({ open, initial, onSave, onDelete, onClose }: Props) {
   const [form, setForm] = useState<RoadmapCardData>(initial || EMPTY)
@@ -65,10 +76,66 @@ export default function RoadmapEditModal({ open, initial, onSave, onDelete, onCl
               placeholder="Breve descrição (opcional)"
             />
           </div>
+          <div>
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Alinhamento</label>
+            <div className="mt-1 flex gap-2">
+              {/* Horizontal */}
+              <div className="flex gap-1 flex-1">
+                {(['left', 'center', 'right'] as const).map(a => (
+                  <button key={a} type="button" onClick={() => set('align', a)}
+                    title={a === 'left' ? 'Esquerda' : a === 'center' ? 'Centro' : 'Direita'}
+                    className={`flex-1 flex items-center justify-center py-1.5 rounded-lg border transition-colors ${form.align === a || (!form.align && a === 'left') ? 'bg-[#00461e] border-[#00461e] text-white' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      {a === 'left'   && <><line x1="3" y1="6"  x2="21" y2="6" /><line x1="3" y1="12" x2="15" y2="12" /><line x1="3" y1="18" x2="18" y2="18" /></>}
+                      {a === 'center' && <><line x1="3" y1="6"  x2="21" y2="6" /><line x1="6" y1="12" x2="18" y2="12" /><line x1="4" y1="18" x2="20" y2="18" /></>}
+                      {a === 'right'  && <><line x1="3" y1="6"  x2="21" y2="6" /><line x1="9" y1="12" x2="21" y2="12" /><line x1="6" y1="18" x2="21" y2="18" /></>}
+                    </svg>
+                  </button>
+                ))}
+              </div>
+              <div className="w-px bg-gray-200" />
+              {/* Vertical */}
+              <div className="flex gap-1 flex-1">
+                {(['top', 'middle', 'bottom'] as const).map(v => (
+                  <button key={v} type="button" onClick={() => set('valign', v)}
+                    title={v === 'top' ? 'Topo' : v === 'middle' ? 'Meio' : 'Base'}
+                    className={`flex-1 flex items-center justify-center py-1.5 rounded-lg border transition-colors ${form.valign === v || (!form.valign && v === 'top') ? 'bg-[#00461e] border-[#00461e] text-white' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      {v === 'top'    && <><line x1="3" y1="3"  x2="21" y2="3"  /><rect x="7" y="6"  width="10" height="5" rx="1"/><rect x="5" y="13" width="14" height="5" rx="1" opacity=".3" /></>}
+                      {v === 'middle' && <><line x1="3" y1="12" x2="21" y2="12" /><rect x="7" y="5"  width="10" height="5" rx="1"/><rect x="7" y="14" width="10" height="5" rx="1"/></>}
+                      {v === 'bottom' && <><line x1="3" y1="21" x2="21" y2="21" /><rect x="5" y="6"  width="14" height="5" rx="1" opacity=".3"/><rect x="7" y="14" width="10" height="5" rx="1"/></>}
+                    </svg>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Forma</label>
+            <div className="mt-1 grid grid-cols-4 gap-1">
+              {SHAPES.map(({ key, label, svg }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => set('shape', key)}
+                  title={label}
+                  className={`flex flex-col items-center gap-0.5 py-1.5 rounded-lg border transition-colors ${(form.shape ?? 'rect') === key ? 'bg-[#00461e] border-[#00461e] text-white' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                >
+                  <svg className="w-6 h-[18px]" viewBox="0 0 24 18" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                    {svg}
+                  </svg>
+                  <span className="text-[9px] font-semibold leading-none">{label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Status</label>
               <select value={form.status} onChange={e => set('status', e.target.value)} className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1D9E75]">
+                <option value="">— sem badge —</option>
                 <option value="backlog">Backlog</option>
                 <option value="planned">Pendente</option>
                 <option value="in-progress">Em andamento</option>
@@ -78,6 +145,7 @@ export default function RoadmapEditModal({ open, initial, onSave, onDelete, onCl
             <div>
               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Categoria</label>
               <select value={form.category} onChange={e => set('category', e.target.value)} className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1D9E75]">
+                <option value="">— sem badge —</option>
                 <option value="feature">Feature</option>
                 <option value="ajuste">Ajuste</option>
                 <option value="nova-entrega">Nova Entrega</option>

@@ -1,7 +1,27 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Component, type ReactNode } from 'react'
 import AnimatedHero from '../components/AnimatedHero'
 import RoadmapCanvas from '../components/roadmap/RoadmapCanvas'
 import type { Node, Edge } from '@xyflow/react'
+
+// Error boundary to catch and display render crashes
+class RoadmapErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null }
+  static getDerivedStateFromError(error: Error) { return { error } }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 32, fontFamily: 'monospace', color: '#dc2626', whiteSpace: 'pre-wrap' }}>
+          <h2 style={{ fontSize: 18, marginBottom: 12 }}>Roadmap Crash</h2>
+          <p><b>{this.state.error.message}</b></p>
+          <pre style={{ fontSize: 11, marginTop: 12, maxHeight: 300, overflow: 'auto', background: '#fef2f2', padding: 12, borderRadius: 8 }}>
+            {this.state.error.stack}
+          </pre>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 declare const google: { script: { run: { withSuccessHandler: (fn: (r: unknown) => void) => { withFailureHandler: (fn: (e: unknown) => void) => { getRoadmapData: () => void } }; getRoadmapData: () => void } } }
 
@@ -10,6 +30,8 @@ interface RoadmapResponse {
   email: string
   nodes: Node[]
   edges: Edge[]
+  viewport?: { x: number; y: number; zoom: number }
+  customColors?: string[]
 }
 
 export default function RoadmapMesaBanco() {
@@ -28,7 +50,7 @@ export default function RoadmapMesaBanco() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA]">
+    <div className="flex flex-col bg-[#FAFAFA]" style={{ height: 'calc(100vh - 56px)', overflow: 'hidden' }}>
       <AnimatedHero className="px-6 py-8">
         <div className="max-w-5xl mx-auto">
           <p className="text-[#a5fa00] text-[11px] font-bold uppercase tracking-[0.15em] mb-2">Repositório · Planejamentos</p>
@@ -59,11 +81,17 @@ export default function RoadmapMesaBanco() {
       )}
 
       {data && (
-        <RoadmapCanvas
-          initialNodes={data.nodes}
-          initialEdges={data.edges}
-          isEditor={data.isEditor}
-        />
+        <RoadmapErrorBoundary>
+          <div className="flex-1 min-h-0">
+            <RoadmapCanvas
+              initialNodes={data.nodes}
+              initialEdges={data.edges}
+              isEditor={data.isEditor}
+              initialViewport={data.viewport}
+              initialCustomColors={data.customColors}
+            />
+          </div>
+        </RoadmapErrorBoundary>
       )}
     </div>
   )

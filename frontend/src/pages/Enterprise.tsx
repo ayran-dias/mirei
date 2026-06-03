@@ -4,15 +4,17 @@ import AnimatedHero from '../components/AnimatedHero'
  * Lazy-loading: queries só disparam na primeira abertura do card.
  * CollapsibleCard monta children apenas ao abrir, mantém mounted após.
  */
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { exportToXlsx } from '../utils/exportXlsx'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   ComposedChart, Bar, Line, BarChart, LineChart,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
 import CollapsibleCard from '../components/CollapsibleCard'
+import CardCreditoLifetime from '../components/CardCreditoLifetime'
 
 // ── Tipos ─────────────────────────────────────────────────────
-interface BaseGeralRow { mes:string;gmv:string;tpv_cartao:string;tpv_pix:string;tpv_boleto:string;tpv_sub:string;tpv_gtw:string;net_mdr:string;net_mdr_pct:string;floating_conta:string;floating_pct:string;delay_rcta:string;delay_pct:string;aluguel:string;aluguel_pct:string;net_rav:string;rav_pct:string;rcta_ted:string;rcta_pix:string;receita_ncof:string;tkr_ncof:string;cogs:string;margem:string;margem_gmv:string }
+interface BaseGeralRow { mes:string;gmv:string;tpv_cartao:string;tpv_pix:string;tpv_boleto:string;tpv_sub:string;tpv_gtw:string;net_mdr:string;net_mdr_pct:string;floating_conta:string;floating_pct:string;delay_rcta:string;delay_pct:string;aluguel:string;aluguel_pct:string;net_rav:string;rav_pct:string;rcta_ted:string;rcta_pix:string;pctg_pix:string;receita_ncof:string;tkr_ncof:string;cogs:string;margem:string;margem_gmv:string }
 interface Visao3MRow { grupo:string;gmv_m3:string;gmv_m2:string;gmv_m1:string;gmv_m0:string;ncof_m3:string;ncof_m2:string;ncof_m1:string;ncof_m0:string }
 interface TransRow { mes:string;ctpv:string;mdr:string;ic:string;fee:string;net_mdr:string;impostos:string;mdr_pct:string;ic_pct:string;fee_pct:string;net_mdr_pct:string;impostos_pct:string }
 interface TransGRow { grupo:string;ctpv_m1:string;mdr_pct_m1:string;ic_pct_m1:string;fee_pct_m1:string;net_mdr_pct_m1:string;ctpv_m0:string;mdr_pct_m0:string;ic_pct_m0:string;fee_pct_m0:string;net_mdr_pct_m0:string }
@@ -40,8 +42,13 @@ const pct = (v: string | number, d = 2) => {
   if (isNaN(n) || n === 0) return ''
   return N(n * 100, d) + '%'
 }
+const fmtBps = (v: number | string | null | undefined): string => {
+  const n = parseFloat(String(v ?? ''))
+  if (isNaN(n)) return '—'
+  return (n * 10000).toFixed(1) + ' bps'
+}
 const neg = (v: string) => { const n = parseFloat(v); return !isNaN(n) && n < 0 }
-const tdC = (v: string) => `px-2 py-1.5 text-right font-mono text-xs ${neg(v) ? 'text-[#d70000]' : 'text-[#1e281e]'}`
+const tdC = (v: string) => `px-2 py-1.5 text-right font-sans text-xs ${neg(v) ? 'text-[#d70000]' : 'text-[#1e281e]'}`
 const TF = { fontFamily: "'Roboto','Manrope',sans-serif" }
 const RH = 32, HH = 34, TMAX = RH * 7 + HH, PG = 20
 
@@ -52,43 +59,29 @@ function getML() {
   return { m3: f(s(3)), m2: f(s(2)), m1: f(s(1)), m0: f(now) + ' MTD' }
 }
 
-// ── Export XLS (SpreadsheetML — abre direto no Excel) ────────
-function fmtExport(v: string): { val: string; isNum: boolean; num: number } {
-  if (!v || v === 'null') return { val: '', isNum: false, num: 0 }
-  const n = parseFloat(v)
-  if (isNaN(n)) return { val: v, isNum: false, num: 0 }
-  return { val: N(n, 2), isNum: true, num: n }
-}
+// ── Export XLSX (SheetJS — arquivo .xlsx real, sem aviso de formato) ─────────
+// Colunas de identificação: sempre exportadas como texto (preserva zeros à esquerda)
+const TEXT_EXPORT_COLS = new Set(['documento', 'doc', 'cnpj', 'cpf', 'afiliacao', 'afiliação', 'stonecode', 'sc', 'clientcnpjorcpf', 'mcc'])
+const isTextCol = (h: string) => TEXT_EXPORT_COLS.has(h.toLowerCase().replace(/[\s_-]/g, ''))
 
 function exportXLS(rows: Record<string, string>[], filename: string) {
   if (!rows.length) return
   const hs = Object.keys(rows[0])
-  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-  // HTML table com namespace Excel — abre sem aviso de formato no Excel
-  const thead = `<tr>${hs.map(h => `<th style="background:#00461e;color:white;font-weight:bold">${esc(h)}</th>`).join('')}</tr>`
-  const tbody = rows.map(r => {
-    const cells = hs.map(h => {
-      const { val, isNum, num } = fmtExport(r[h])
-      // mso-number-format preserva o tipo numérico no Excel
-      return isNum && val
-        ? `<td style="mso-number-format:&quot;0.00&quot;">${num}</td>`
-        : `<td>${esc(val)}</td>`
+  const headers = hs.map(h => ({ key: h, label: h }))
+  // Para colunas de texto (CNPJ, stonecode), forçar string mesmo se parecer número
+  const data = rows.map(row => {
+    const out: Record<string, any> = {}
+    hs.forEach(h => {
+      const v = row[h]
+      if (isTextCol(h)) {
+        out[h] = v || ''
+      } else {
+        out[h] = v
+      }
     })
-    return `<tr>${cells.join('')}</tr>`
+    return out
   })
-  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
-  xmlns:x="urn:schemas-microsoft-com:office:excel"
-  xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="UTF-8">
-<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets>
-<x:ExcelWorksheet><x:Name>Dados</x:Name>
-<x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
-</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
-</head><body><table border="1">${thead}${tbody.join('')}</table></body></html>`
-  const a = document.createElement('a')
-  a.href = 'data:application/vnd.ms-excel;charset=utf-8,' + encodeURIComponent('\ufeff' + html)
-  a.download = filename + '.xls'
-  a.click()
+  exportToXlsx(data, headers, filename)
 }
 
 function ExportBtn({ data, name }: { data: Record<string, string>[] | null; name: string }) {
@@ -261,9 +254,10 @@ interface BF {
 }
 const EF: BF = { grupos:[], grupo1s:[], grupo2s:[], docs:[], scs:[], mccs:[], mes:'' }
 
-function FB({ runOpts, onApply }: {
+function FB({ runOpts, onApply, onFilteredDocs }: {
   runOpts: (f: BF) => void  // re-fetches cascaded options
   onApply: (f: BF) => void
+  onFilteredDocs?: (docs: string[]) => void
 }) {
   const [f, setF] = useState<BF>(EF)
   const [opts, setOpts] = useState<Record<string, string[]>>({})
@@ -278,6 +272,8 @@ function FB({ runOpts, onApply }: {
     const map: Record<string, string[]> = {}
     for (const { tipo, valor } of rawOpts) { if (!map[tipo]) map[tipo] = []; map[tipo].push(valor) }
     setOpts(map)
+    // Reportar docs filtrados ao parent (cascaded = já respeitam filtros ativos)
+    if (onFilteredDocs) onFilteredDocs(map.doc || [])
   }, [rawOpts])
 
   // Cascading: quando qualquer filtro muda, re-busca as opções filtradas
@@ -303,7 +299,7 @@ function FB({ runOpts, onApply }: {
     <div className="mb-4 p-3 bg-[#f5fff5] rounded-xl border border-[#c8d2c8]">
       {optsLoading && <div className="text-[10px] text-[#96a096] mb-2">Carregando opções...</div>}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 mb-3">
-        {field('Grupo Marca', 'grupos',  'grupo')}
+        {field('Grupo', 'grupos',  'grupo')}
         {field('Grupo 1',     'grupo1s', 'grupo1')}
         {field('Grupo 2',     'grupo2s', 'grupo2')}
         {field('Documento',   'docs',    'doc')}
@@ -330,10 +326,61 @@ function FB({ runOpts, onApply }: {
   )
 }
 
+// ── Heatmap ───────────────────────────────────────────────────
+// Formata valor para exibição no range min/max do header
+const fmtK = (v: number): string => {
+  const a = Math.abs(v)
+  if (a >= 1e9) return N(v / 1e9, 1) + 'B'
+  if (a >= 1e6) return N(v / 1e6, 1) + 'M'
+  if (a >= 1e3) return N(v / 1e3, 1) + 'K'
+  if (a >= 1) return N(v, 1)
+  // valores fracionários (percentuais já vêm como 0.01234)
+  return N(v * 100, 2) + '%'
+}
+
+function useHeatmap(rows: Record<string, any>[], numericCols: string[]) {
+  return useMemo(() => {
+    const stats: Record<string, { min: number; max: number }> = {}
+    numericCols.forEach(col => {
+      const vals = rows.map(r => parseFloat(r[col]) || 0).filter(v => !isNaN(v) && isFinite(v))
+      if (!vals.length) return
+      stats[col] = { min: Math.min(...vals), max: Math.max(...vals) }
+    })
+    const getCellBg = (col: string, value: number): string => {
+      const s = stats[col]
+      if (!s || s.max === s.min) return 'transparent'
+      const ratio = (value - s.min) / (s.max - s.min)
+      // Colunas onde todos os valores são negativos → vermelho (maior magnitude = mais vermelho)
+      if (s.max <= 0) {
+        const invRatio = 1 - ratio  // ratio=0 é o mais negativo → invRatio=1 → mais vermelho
+        return `rgba(220,38,38,${Math.min(invRatio * 0.12, 0.12)})`
+      }
+      return `rgba(0,70,30,${Math.min(ratio * 0.18, 0.18)})`
+    }
+    return { getCellBg, stats }
+  }, [rows, numericCols])
+}
+
+// Hook: retorna apenas colunas com pelo menos 1 valor não-zero e não-nulo nos dados retornados
+function useVisibleColumns(data: Record<string, any>[], allCols: string[]) {
+  return useMemo(() => {
+    if (!data || !data.length) return allCols
+    return allCols.filter(col => {
+      if (col === 'mes') return true
+      return data.some(row => {
+        const v = row[col]
+        if (v === null || v === undefined || v === '' || v === '—') return false
+        const n = parseFloat(String(v))
+        return !isNaN(n) && Math.abs(n) > 0
+      })
+    })
+  }, [data, allCols])
+}
+
 // ════════════════════════════════════════════════════════════════
 // 1 — Base Geral
 // ════════════════════════════════════════════════════════════════
-const ALL_BG_COLS: [keyof BaseGeralRow, string, boolean?][] = [
+const ALL_BG_COLS: [keyof BaseGeralRow, string, boolean?, boolean?][] = [
   ['gmv',          'GMV'],
   ['tpv_cartao',   'TPV Cartão'],
   ['tpv_pix',      'TPV Pix'],
@@ -352,6 +399,7 @@ const ALL_BG_COLS: [keyof BaseGeralRow, string, boolean?][] = [
   ['rav_pct',      'RAV%',      true],
   ['rcta_ted',     'Rcta. TED'],
   ['rcta_pix',     'Pix (rcta)'],
+  ['pctg_pix',     'Pix (bps)',  false, true],
   ['receita_ncof', 'Rcta. nCOF'],
   ['tkr_ncof',     'TkR nCOF',  true],
   ['cogs',         'COGs'],
@@ -359,22 +407,68 @@ const ALL_BG_COLS: [keyof BaseGeralRow, string, boolean?][] = [
   ['margem_gmv',   'Mrg/GMV',   true],
 ]
 
-function C1() {
+function C1({ onFilteredDocs, onActiveFilters }: { onFilteredDocs?: (docs: string[]) => void; onActiveFilters?: (f: Record<string, string[]>) => void }) {
   const { data, loading, run } = useGASLazy<BaseGeralRow>('getEnterpriseBaseGeral')
-  useEffect(() => { run() }, []) // eslint-disable-line
+  useEffect(() => { run(); if (onActiveFilters) onActiveFilters({}) }, []) // eslint-disable-line — trigger initial summary with empty filters
   const [sel, setSel] = useState<Set<string>>(new Set(ALL_BG_COLS.map(([k]) => k as string)))
   const [showPicker, setShowPicker] = useState(false)
   const toggle = (k: string) => setSel(s => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n })
-  const visCols = ALL_BG_COLS.filter(([k]) => sel.has(k as string))
+
+  // Sort state
+  const [sortCol, setSortCol] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  function handleSort(col: string) {
+    if (sortCol === col) {
+      if (sortDir === 'asc') setSortDir('desc')
+      else { setSortCol(null); setSortDir('asc') }
+    } else {
+      setSortCol(col)
+      setSortDir('asc')
+    }
+  }
+
+  // Auto-ocultar colunas onde todos os valores são zero/null nos dados retornados
+  const allColKeys = ALL_BG_COLS.map(([k]) => k as string)
+  const nonEmptyCols = useVisibleColumns((data || []) as Record<string, any>[], allColKeys)
+  const autoHiddenCount = allColKeys.length - nonEmptyCols.length
+
+  // visCols: colunas ativas no picker E com dados (não todas-zero)
+  const visCols = ALL_BG_COLS.filter(([k]) => sel.has(k as string) && nonEmptyCols.includes(k as string))
+
+  // Heatmap: calcular stats para todas as colunas numéricas visíveis
+  const numericCols = visCols.map(([k]) => k as string)
+  const { getCellBg, stats } = useHeatmap((data || []) as Record<string, any>[], numericCols)
+
+  // Sorted data
+  const sortedData = useMemo(() => {
+    if (!sortCol || !data) return data
+    return [...data].sort((a, b) => {
+      if (sortCol === 'mes') {
+        const sa = String(a.mes ?? '').toLowerCase()
+        const sb = String(b.mes ?? '').toLowerCase()
+        return sortDir === 'asc' ? sa.localeCompare(sb) : sb.localeCompare(sa)
+      }
+      const va = parseFloat(String(a[sortCol as keyof BaseGeralRow] ?? ''))
+      const vb = parseFloat(String(b[sortCol as keyof BaseGeralRow] ?? ''))
+      const isNum = !isNaN(va) && !isNaN(vb)
+      if (isNum) return sortDir === 'asc' ? va - vb : vb - va
+      const sa = String(a[sortCol as keyof BaseGeralRow] ?? '').toLowerCase()
+      const sb = String(b[sortCol as keyof BaseGeralRow] ?? '').toLowerCase()
+      return sortDir === 'asc' ? sa.localeCompare(sb) : sb.localeCompare(sa)
+    })
+  }, [data, sortCol, sortDir])
 
   return (
     <>
-      <FB runOpts={() => {}} onApply={f => run(f)} />
+      <FB runOpts={() => {}} onApply={f => { run(f); if (onActiveFilters) onActiveFilters({ grupos: f.grupos, grupo1s: f.grupo1s, grupo2s: f.grupo2s, docs: f.docs, scs: f.scs, mccs: f.mccs }) }} onFilteredDocs={onFilteredDocs} />
       {loading && <Sk rows={7} cols={9} />}
       {!loading && data && (
         <>
           <div className="mb-3 flex items-center justify-between">
-            <span className="text-[11px] text-[#505a50]">{sel.size}/{ALL_BG_COLS.length} métricas</span>
+            <span className="text-[11px] text-[#505a50]">
+              {visCols.length}/{ALL_BG_COLS.length} métricas
+              {autoHiddenCount > 0 && <span className="text-[#96a096] ml-1">({autoHiddenCount} sem dados ocultas)</span>}
+            </span>
             <div className="flex gap-2">
               <ExportBtn data={data as any} name="enterprise_base_geral" />
               <button onClick={() => setShowPicker(!showPicker)}
@@ -385,24 +479,74 @@ function C1() {
           </div>
           {showPicker && (
             <div className="mb-3 p-3 bg-[#f5fff5] rounded-xl border border-[#c8d2c8] grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1">
-              {ALL_BG_COLS.map(([k, l]) => (
-                <label key={k as string} className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="checkbox" checked={sel.has(k as string)} onChange={() => toggle(k as string)} className="accent-[#00461e]" />
-                  <span className="text-xs text-[#1e281e]">{l}</span>
-                </label>
-              ))}
+              {ALL_BG_COLS.map(([k, l]) => {
+                const isEmpty = !nonEmptyCols.includes(k as string)
+                return (
+                  <label key={k as string} className={`flex items-center gap-1.5 cursor-pointer ${isEmpty ? 'opacity-40' : ''}`} title={isEmpty ? 'Sem dados nesta carteira' : undefined}>
+                    <input type="checkbox" checked={sel.has(k as string)} onChange={() => toggle(k as string)} className="accent-[#00461e]" disabled={isEmpty} />
+                    <span className="text-xs text-[#1e281e]">{l}{isEmpty && <span className="text-[9px] ml-0.5 text-[#96a096]">∅</span>}</span>
+                  </label>
+                )
+              })}
             </div>
           )}
           <ST>
             <table className="w-full text-xs">
               <thead><tr className="bg-[#f5fff5] sticky top-0 z-10">
-                <th className="px-3 py-2 text-left font-semibold text-[#00461e] sticky left-0 bg-[#f5fff5] text-[11px]">Mês</th>
-                {visCols.map(([k, l]) => <th key={k} className="px-2 py-2 text-right font-semibold text-[#505a50] whitespace-nowrap text-[11px]">{l}</th>)}
+                <th
+                  onClick={() => handleSort('mes')}
+                  className="px-3 py-2 text-left font-semibold text-[#00461e] sticky left-0 bg-[#f5fff5] text-[11px] cursor-pointer select-none hover:bg-[#003d17] transition-colors"
+                  title="Clique para ordenar"
+                >
+                  <div className="flex items-center gap-1">
+                    Mês
+                    {sortCol === 'mes' ? (sortDir === 'asc' ? ' ▴' : ' ▾') : ' ⇅'}
+                  </div>
+                  <div className="text-[9px] text-gray-400 font-normal mt-0.5">(Min-Max)</div>
+                </th>
+                {visCols.map(([k, l]) => {
+                  const s = stats[k as string]
+                  const isNeg = s && s.max <= 0
+                  const gradColor = isNeg ? 'rgba(220,38,38,0.25)' : 'rgba(0,70,30,0.25)'
+                  const colKey = k as string
+                  return (
+                    <th
+                      key={k}
+                      onClick={() => handleSort(colKey)}
+                      className="px-2 py-2 text-right font-semibold text-[#505a50] whitespace-nowrap text-[11px] cursor-pointer select-none hover:bg-[#003d17] transition-colors"
+                      title="Clique para ordenar"
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        {l}
+                        {sortCol === colKey ? (sortDir === 'asc' ? ' ▴' : ' ▾') : ' ⇅'}
+                      </div>
+                      {s && s.min !== s.max && (
+                        <>
+                          <div className="w-full h-1 rounded-full mt-0.5" style={{
+                            background: `linear-gradient(to right, rgba(0,70,30,0.02), ${gradColor})`
+                          }} />
+                          <div className="text-[9px] text-gray-400 font-normal mt-0.5 leading-tight">
+                            {fmtK(s.min)} → {fmtK(s.max)}
+                          </div>
+                        </>
+                      )}
+                    </th>
+                  )
+                })}
               </tr></thead>
-              <tbody>{data.map((row, i) => (
+              <tbody>{(sortedData || data).map((row, i) => (
                 <tr key={i} className="border-b border-[#f0f4f0] hover:bg-[#fafffe]">
                   <td className="px-3 py-1.5 font-semibold text-[#00461e] sticky left-0 bg-white text-xs">{row.mes}</td>
-                  {visCols.map(([k, , p]) => <td key={k} className={tdC(row[k])}>{p ? pct(row[k]) : mi(row[k])}</td>)}
+                  {visCols.map(([k, , p, b]) => {
+                    const colKey = k as string
+                    const numVal = parseFloat(row[k])
+                    const bg = getCellBg(colKey, isNaN(numVal) ? 0 : numVal)
+                    return (
+                      <td key={k} className={tdC(row[k])} style={{ backgroundColor: bg }}>
+                        {b ? fmtBps(row[k]) : p ? pct(row[k]) : mi(row[k])}
+                      </td>
+                    )
+                  })}
                 </tr>
               ))}</tbody>
             </table>
@@ -412,9 +556,8 @@ function C1() {
     </>
   )
 }
-function BaseGeral() {
-  // C1 não precisa mais receber opts — FB carrega suas próprias opções internamente
-  return <CollapsibleCard title="Base Geral" color="green"><C1 /></CollapsibleCard>
+function BaseGeral({ onFilteredDocs, onActiveFilters }: { onFilteredDocs?: (docs: string[]) => void; onActiveFilters?: (f: Record<string, string[]>) => void }) {
+  return <CollapsibleCard title="Base Geral" color="green"><C1 onFilteredDocs={onFilteredDocs} onActiveFilters={onActiveFilters} /></CollapsibleCard>
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -474,12 +617,12 @@ function C2({ opts }: { opts: string[] }) {
                 return (
                   <tr key={i} className="border-b border-[#f0f4f0] hover:bg-[#fafffe]">
                     <td className="px-3 py-1.5 font-medium text-[#1e281e] sticky left-0 bg-white max-w-[130px] truncate text-xs" title={row.grupo}>{row.grupo}</td>
-                    <td className="px-2 py-1.5 text-center font-mono text-xs text-[#505a50] w-24">{fv(row, 'm3')}</td>
-                    <td className="px-2 py-1.5 text-center font-mono text-xs text-[#505a50] w-24">{fv(row, 'm2')}</td>
+                    <td className="px-2 py-1.5 text-center font-sans text-xs text-[#505a50] w-24">{fv(row, 'm3')}</td>
+                    <td className="px-2 py-1.5 text-center font-sans text-xs text-[#505a50] w-24">{fv(row, 'm2')}</td>
                     <td className="px-2 py-1.5 text-center w-14"><VB cur={v2} prev={v3} /></td>
-                    <td className="px-2 py-1.5 text-center font-mono text-xs text-[#1e281e] w-24">{fv(row, 'm1')}</td>
+                    <td className="px-2 py-1.5 text-center font-sans text-xs text-[#1e281e] w-24">{fv(row, 'm1')}</td>
                     <td className="px-2 py-1.5 text-center w-14"><VB cur={v1} prev={v2} /></td>
-                    <td className="px-2 py-1.5 text-center font-mono text-xs text-[#505a50] w-24">{fv(row, 'm0')}</td>
+                    <td className="px-2 py-1.5 text-center font-sans text-xs text-[#505a50] w-24">{fv(row, 'm0')}</td>
                     <td className="px-2 py-1.5 text-center w-14"><VB cur={v0} prev={v1} /></td>
                   </tr>
                 )
@@ -787,7 +930,7 @@ function C6({ opts }: { opts: Record<string, string[]> }) {
             <td className="px-3 py-1.5 font-bold text-white bg-[#003015] text-xs text-center tracking-wide">SHARE</td>
             {MODS.map(modal => {
               const v = cell('SHARE', modal, metric)
-              return <td key={modal} className={`px-3 py-1.5 text-center font-mono text-xs font-bold ${neg(v || '0') ? 'text-[#d70000]' : v ? 'text-[#00461e]' : 'text-[#c8d2c8]'} bg-[#f5fff5]`}>{v || '—'}</td>
+              return <td key={modal} className={`px-3 py-1.5 text-center font-sans text-xs font-bold ${neg(v || '0') ? 'text-[#d70000]' : v ? 'text-[#00461e]' : 'text-[#c8d2c8]'} bg-[#f5fff5]`}>{v || '—'}</td>
             })}
           </tr>
           {/* Linhas por bandeira */}
@@ -796,7 +939,7 @@ function C6({ opts }: { opts: Record<string, string[]> }) {
               <td className="px-3 py-1.5 font-bold text-[#00461e] bg-[#f5fff5] text-xs text-center">{band}</td>
               {MODS.map(modal => {
                 const v = cell(band, modal, metric)
-                return <td key={modal} className={`px-3 py-1.5 text-center font-mono text-xs ${neg(v || '0') ? 'text-[#d70000]' : v ? 'text-[#1e281e]' : 'text-[#c8d2c8]'}`}>{v || '—'}</td>
+                return <td key={modal} className={`px-3 py-1.5 text-center font-sans text-xs ${neg(v || '0') ? 'text-[#d70000]' : v ? 'text-[#1e281e]' : 'text-[#c8d2c8]'}`}>{v || '—'}</td>
               })}
             </tr>
           ))}
@@ -1080,7 +1223,7 @@ function C9({ opts, mesOpts }: { opts: string[]; mesOpts: string[] }) {
                   <td className="px-3 py-1.5 font-medium text-[#1e281e] sticky left-0 bg-white text-xs">{l}</td>
                   {data.map(d => {
                     const v = d[k]
-                    return <td key={d.mes} className={`px-2 py-1.5 text-right font-mono text-xs ${neg(v) ? 'text-[#d70000]' : 'text-[#1e281e]'}`}>{fc(ip, ir, v)}</td>
+                    return <td key={d.mes} className={`px-2 py-1.5 text-right font-sans text-xs ${neg(v) ? 'text-[#d70000]' : 'text-[#1e281e]'}`}>{fc(ip, ir, v)}</td>
                   })}
                 </tr>
               ))}</tbody>
@@ -1109,7 +1252,8 @@ function C10({ opts }: { opts: string[] }) {
   const thC = "px-2 py-2 text-right font-semibold text-[#505a50] text-[11px] whitespace-nowrap"
 
   return (
-    <>
+    /* min-h garante espaço para o dropdown do MultiCombo sem ser cortado pelo overflow-hidden do CollapsibleCard */
+    <div className="min-h-[260px]">
       <div className="flex items-center gap-3 mb-3">
         <div className="flex-1"><GS vals={gqs} onChange={v => { setGqs(v); if (v.length && !data) run() }} opts={opts} /></div>
         <ExportBtn data={filtered as any} name="enterprise_afiliações" />
@@ -1119,34 +1263,36 @@ function C10({ opts }: { opts: string[] }) {
       {error && <p className="text-xs text-[#d70000] py-3">Erro: {error}</p>}
       {!loading && !error && data && (
         <>
-          <ST>
-            <table className="w-full text-xs" style={TF}>
-              <thead><tr className="bg-[#f5fff5] sticky top-0 z-10">
-                <th className="px-3 py-2 text-left font-semibold text-[#00461e] sticky left-0 bg-[#f5fff5] min-w-[130px] text-[11px]">Grupo</th>
-                <th className="px-2 py-2 text-left font-semibold text-[#505a50] text-[11px]">Afiliação</th>
-                <th className="px-2 py-2 text-left font-semibold text-[#505a50] text-[11px]">Documento</th>
-                <th className="px-2 py-2 text-left font-semibold text-[#505a50] text-[11px]">MCC</th>
-                <th className="px-2 py-2 text-left font-semibold text-[#505a50] text-[11px]">Categoria</th>
-                <th className={thC}>Avg TPV 3m</th>
-                <th className={thC}>Avg Rcta. nCOF 3m</th>
-              </tr></thead>
-              <tbody>{paginated.map((row, i) => (
-                <tr key={i} className="border-b border-[#f0f4f0] hover:bg-[#fafffe]">
-                  <td className="px-3 py-1.5 font-medium text-[#1e281e] sticky left-0 bg-white max-w-[130px] truncate text-xs" title={row.grupo}>{row.grupo}</td>
-                  <td className="px-2 py-1.5 text-xs text-[#505a50] font-mono">{row.afiliacao}</td>
-                  <td className="px-2 py-1.5 text-xs text-[#505a50] font-mono">{row.documento}</td>
-                  <td className="px-2 py-1.5 text-xs text-[#505a50]">{row.mcc}</td>
-                  <td className="px-2 py-1.5 text-xs text-[#505a50]">{row.categoria}</td>
-                  <td className={tdC(row.avg_tpv_3m)}>{mi(row.avg_tpv_3m)}</td>
-                  <td className={tdC(row.avg_ncof_3m)}>{mi(row.avg_ncof_3m)}</td>
-                </tr>
-              ))}</tbody>
-            </table>
-          </ST>
+          <div className="overflow-x-auto">
+            <ST>
+              <table className="text-xs" style={{ ...TF, minWidth: '700px' }}>
+                <thead><tr className="bg-[#f5fff5] sticky top-0 z-10">
+                  <th className="px-3 py-2 text-left font-semibold text-[#00461e] sticky left-0 bg-[#f5fff5] min-w-[130px] text-[11px]">Grupo</th>
+                  <th className="px-2 py-2 text-left font-semibold text-[#505a50] text-[11px] min-w-[120px]">Afiliação</th>
+                  <th className="px-2 py-2 text-left font-semibold text-[#505a50] text-[11px] min-w-[130px]">Documento</th>
+                  <th className="px-2 py-2 text-left font-semibold text-[#505a50] text-[11px] min-w-[80px]">MCC</th>
+                  <th className="px-2 py-2 text-left font-semibold text-[#505a50] text-[11px] min-w-[120px]">Categoria</th>
+                  <th className={thC}>Avg TPV 3m</th>
+                  <th className={thC}>Avg Rcta. nCOF 3m</th>
+                </tr></thead>
+                <tbody>{paginated.map((row, i) => (
+                  <tr key={i} className="border-b border-[#f0f4f0] hover:bg-[#fafffe]">
+                    <td className="px-3 py-1.5 font-medium text-[#1e281e] sticky left-0 bg-white max-w-[130px] truncate text-xs" title={row.grupo}>{row.grupo}</td>
+                    <td className="px-2 py-1.5 text-xs text-[#505a50] font-sans">{row.afiliacao}</td>
+                    <td className="px-2 py-1.5 text-xs text-[#505a50] font-sans">{row.documento}</td>
+                    <td className="px-2 py-1.5 text-xs text-[#505a50]">{row.mcc}</td>
+                    <td className="px-2 py-1.5 text-xs text-[#505a50]">{row.categoria}</td>
+                    <td className={tdC(row.avg_tpv_3m)}>{mi(row.avg_tpv_3m)}</td>
+                    <td className={tdC(row.avg_ncof_3m)}>{mi(row.avg_ncof_3m)}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </ST>
+          </div>
           <Pg page={page} total={filtered.length} onChange={setPage} />
         </>
       )}
-    </>
+    </div>
   )
 }
 function AfiliacoesCard({ opts }: { opts: string[] }) { return <CollapsibleCard title="Afiliações e Documentos" color="green"><C10 opts={opts} /></CollapsibleCard> }
@@ -1160,6 +1306,8 @@ export default function Enterprise() {
   const opts: Record<string, string[]> = {}
   if (ro) { for (const { tipo, valor } of ro) { if (!opts[tipo]) opts[tipo] = []; opts[tipo].push(valor) } }
   // FilterBar (Base Geral) gerencia suas próprias opções internamente com cascading
+  // activeFilters: filtros aplicados pelo FilterBar, passados ao CardCreditoLifetime (server-side query sem LIMIT 500)
+  const [activeFilters, setActiveFilters] = useState<Record<string, string[]>>({})
 
   return (
     <div>
@@ -1185,7 +1333,8 @@ export default function Enterprise() {
 
       <div className="max-w-7xl mx-auto px-6 py-8">
       <div className="space-y-4">
-        <BaseGeral />
+        <BaseGeral onActiveFilters={setActiveFilters} />
+        <CardCreditoLifetime carteira="enterprise" filters={activeFilters} groupOpts={opts.grupo || []} />
         <LinhasReceita opts={opts.grupo || []} />
         <Visao3M opts={opts.grupo || []} />
         <TransacionalCartao opts={opts.grupo || []} />
