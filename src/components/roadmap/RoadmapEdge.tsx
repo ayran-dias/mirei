@@ -18,9 +18,13 @@ export default memo(function RoadmapEdge({
   sourcePosition, targetPosition,
   style, markerEnd, selected, data,
 }: EdgeProps) {
+  const dist = Math.abs(targetX - sourceX) + Math.abs(targetY - sourceY)
+  const offset = Math.max(4, Math.min(20, dist / 4))
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX, sourceY, sourcePosition,
     targetX, targetY, targetPosition,
+    borderRadius: 6,
+    offset,
   })
 
   const edgeData = data as Record<string, unknown> | undefined
