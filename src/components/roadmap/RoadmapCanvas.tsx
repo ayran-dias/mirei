@@ -304,6 +304,8 @@ function Canvas({ initialNodes, initialEdges, isEditor: isEditorProp, initialVie
   // Undo history
   const undoStack = useRef<{ nodes: Node[]; edges: Edge[] }[]>([])
   const lastSavedStateRef = useRef<{ nodes: Node[]; edges: Edge[] } | null>(null)
+  // Copy/paste clipboard
+  const clipboardNodes = useRef<Node[]>([])
   const skipUndoPush = useRef(false)
 
   // Helper: serialize state to GAS payload
@@ -356,18 +358,41 @@ function Canvas({ initialNodes, initialEdges, isEditor: isEditorProp, initialVie
     }, 1500)
   }, [setNodes, setEdges, buildPayload])
 
-  // Ctrl+Z undo
+  // Ctrl+Z / Ctrl+C / Ctrl+V
   useEffect(() => {
     if (!isEditor) return
     const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
         e.preventDefault()
         handleUndo()
       }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+        const selected = nodes.filter(n => n.selected)
+        if (selected.length > 0) clipboardNodes.current = selected
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+        if (clipboardNodes.current.length === 0) return
+        e.preventDefault()
+        const OFFSET = 24
+        const idMap = new Map<string, string>()
+        const pasted = clipboardNodes.current.map(n => {
+          const newId = `${n.type ?? 'node'}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+          idMap.set(n.id, newId)
+          return { ...n, id: newId, position: { x: n.position.x + OFFSET, y: n.position.y + OFFSET }, selected: true }
+        })
+        setNodes(ns => {
+          const deselected = ns.map(n => ({ ...n, selected: false }))
+          const updated = [...deselected, ...pasted]
+          triggerSave(updated, edges)
+          return updated
+        })
+      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [isEditor, handleUndo])
+  }, [isEditor, handleUndo, nodes, edges, setNodes, triggerSave])
 
   // ── Color palette ─────────────────────────────────────────────────────────────
   // Keep ref in sync with state so buildPayload always reads the latest
