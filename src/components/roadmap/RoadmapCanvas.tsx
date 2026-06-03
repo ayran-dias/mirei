@@ -695,11 +695,19 @@ function Canvas({ initialNodes, initialEdges, isEditor: isEditorProp, initialVie
       const fx = frame.position.x
       const fy = frame.position.y
 
-      const contained = currentNodes
-        .filter(n => n.id !== frameId && n.type !== 'frame')
+      // Use drag-tracked containedNodeIds as base; add any untracked nodes inside bbox; exclude hidden nodes
+      const existingContained = new Set((frame.data as unknown as RoadmapFrameData).containedNodeIds ?? [])
+      const byBbox = currentNodes
+        .filter(n => n.id !== frameId && n.type !== 'frame' && !n.hidden)
         .filter(n => n.position.x >= fx && n.position.x <= fx + fw &&
                      n.position.y >= fy && n.position.y <= fy + fh)
         .map(n => n.id)
+      // Union: tracked nodes that still exist + untracked nodes inside bbox
+      const existingIds = currentNodes.map(n => n.id)
+      const contained = [
+        ...Array.from(existingContained).filter(id => existingIds.includes(id)),
+        ...byBbox.filter(id => !existingContained.has(id)),
+      ]
 
       setNodesFn(ns => {
         const updated = ns.map(n => {
