@@ -1,5 +1,16 @@
 import { useState, useEffect } from 'react'
-import type { RoadmapCardData } from './RoadmapCardNode'
+import type { RoadmapCardData, CardShape } from './RoadmapCardNode'
+
+const SHAPES: { key: CardShape; label: string; svg: React.ReactNode }[] = [
+  { key: 'rect',          label: 'Retângulo',    svg: <rect x="1" y="1" width="22" height="16" rx="2" /> },
+  { key: 'rounded',       label: 'Arredondado',  svg: <rect x="1" y="1" width="22" height="16" rx="8" /> },
+  { key: 'diamond',       label: 'Decisão',      svg: <polygon points="12,1 23,9 12,17 1,9" /> },
+  { key: 'circle',        label: 'Círculo',      svg: <ellipse cx="12" cy="9" rx="11" ry="8" /> },
+  { key: 'parallelogram', label: 'Dados',        svg: <polygon points="5,1 23,1 19,17 1,17" /> },
+  { key: 'hexagon',       label: 'Hexágono',     svg: <polygon points="6,1 18,1 23,9 18,17 6,17 1,9" /> },
+  { key: 'triangle',      label: 'Triângulo',    svg: <polygon points="12,1 23,17 1,17" /> },
+  { key: 'cylinder',      label: 'Banco',        svg: <><ellipse cx="12" cy="4" rx="11" ry="3" /><path d="M1,4 L1,15 A11,3 0 0,0 23,15 L23,4" /></> },
+]
 
 interface Props {
   open: boolean
@@ -101,10 +112,30 @@ export default function RoadmapEditModal({ open, initial, onSave, onDelete, onCl
               </div>
             </div>
           </div>
+          <div>
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Forma</label>
+            <div className="mt-1 grid grid-cols-4 gap-1">
+              {SHAPES.map(({ key, label, svg }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => set('shape', key)}
+                  title={label}
+                  className={`flex flex-col items-center gap-0.5 py-1.5 rounded-lg border transition-colors ${(form.shape ?? 'rect') === key ? 'bg-[#00461e] border-[#00461e] text-white' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                >
+                  <svg className="w-6 h-[18px]" viewBox="0 0 24 18" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                    {svg}
+                  </svg>
+                  <span className="text-[9px] font-semibold leading-none">{label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Status</label>
               <select value={form.status} onChange={e => set('status', e.target.value)} className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1D9E75]">
+                <option value="">— sem badge —</option>
                 <option value="backlog">Backlog</option>
                 <option value="planned">Pendente</option>
                 <option value="in-progress">Em andamento</option>
@@ -114,6 +145,7 @@ export default function RoadmapEditModal({ open, initial, onSave, onDelete, onCl
             <div>
               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Categoria</label>
               <select value={form.category} onChange={e => set('category', e.target.value)} className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1D9E75]">
+                <option value="">— sem badge —</option>
                 <option value="feature">Feature</option>
                 <option value="ajuste">Ajuste</option>
                 <option value="nova-entrega">Nova Entrega</option>

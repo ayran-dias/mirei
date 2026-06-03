@@ -2,6 +2,8 @@ import { memo, useState, useEffect, useRef } from 'react'
 import { Handle, Position, NodeResizer, NodeToolbar, type NodeProps, useUpdateNodeInternals } from '@xyflow/react'
 import { useRoadmapActions } from './RoadmapActionsContext'
 
+export type CardShape = 'rect' | 'rounded' | 'diamond' | 'circle' | 'parallelogram' | 'hexagon' | 'triangle' | 'cylinder'
+
 export interface RoadmapCardData {
   title: string
   description: string
@@ -11,6 +13,7 @@ export interface RoadmapCardData {
   color?: string
   align?: 'left' | 'center' | 'right'
   valign?: 'top' | 'middle' | 'bottom'
+  shape?: CardShape
 }
 
 const STATUS_STYLE: Record<string, {
@@ -75,6 +78,44 @@ const STATUS_TOOLBAR = [
   { key: 'done',         icon: '✓', title: 'Concluído',     color: 'text-[#00461e] hover:text-[#002f14]' },
 ]
 
+// Cores hex para preencher o SVG (paralelas às classes Tailwind do STATUS_STYLE)
+const STATUS_HEX: Record<string, { fill: string; stroke: string }> = {
+  backlog:       { fill: '#f9fafb', stroke: '#e5e7eb' },
+  planned:       { fill: '#fef2f2', stroke: '#ef4444' },
+  'in-progress': { fill: 'rgba(0,215,0,0.12)', stroke: '#00d700' },
+  done:          { fill: '#00461e', stroke: '#00461e' },
+}
+
+// Inset do conteúdo dentro de cada forma (espaço para o SVG não cobrir o texto)
+const SHAPE_INSET: Record<string, React.CSSProperties> = {
+  rect:          { padding: '10px 12px' },
+  rounded:       { padding: '10px 14px' },
+  diamond:       { padding: '28% 14%' },
+  circle:        { padding: '16% 12%' },
+  parallelogram: { padding: '8px 26px' },
+  hexagon:       { padding: '8px 22px' },
+  triangle:      { padding: '44% 14% 8%' },
+  cylinder:      { padding: '22px 12px 10px' },
+}
+
+function CardShapeSVG({ shape, fill, stroke }: { shape: CardShape; fill: string; stroke: string }) {
+  const p = { fill, stroke, strokeWidth: 2, vectorEffect: 'non-scaling-stroke' as const }
+  if (shape === 'rounded')      return <rect x="0.01" y="0.01" width="0.98" height="0.98" rx="0.12" {...p} />
+  if (shape === 'diamond')      return <polygon points="0.5,0.01 0.99,0.5 0.5,0.99 0.01,0.5" {...p} />
+  if (shape === 'circle')       return <ellipse cx="0.5" cy="0.5" rx="0.49" ry="0.49" {...p} />
+  if (shape === 'parallelogram') return <polygon points="0.16,0.01 0.99,0.01 0.84,0.99 0.01,0.99" {...p} />
+  if (shape === 'hexagon')      return <polygon points="0.25,0.01 0.75,0.01 0.99,0.5 0.75,0.99 0.25,0.99 0.01,0.5" {...p} />
+  if (shape === 'triangle')     return <polygon points="0.5,0.03 0.97,0.97 0.03,0.97" {...p} />
+  if (shape === 'cylinder') return (
+    <>
+      <path d="M0.01,0.15 L0.01,0.85 A0.5,0.15 0 0,0 0.99,0.85 L0.99,0.15" fill={fill} stroke={stroke} strokeWidth={2} vectorEffect="non-scaling-stroke" />
+      <ellipse cx="0.5" cy="0.85" rx="0.49" ry="0.14" fill={fill} stroke={stroke} strokeWidth={2} vectorEffect="non-scaling-stroke" />
+      <ellipse cx="0.5" cy="0.15" rx="0.49" ry="0.14" fill={fill} stroke={stroke} strokeWidth={2} vectorEffect="non-scaling-stroke" />
+    </>
+  )
+  return null
+}
+
 function RoadmapCardNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as RoadmapCardData
   const s = STATUS_STYLE[d.status] || STATUS_STYLE.backlog
@@ -83,6 +124,12 @@ function RoadmapCardNode({ id, data, selected }: NodeProps) {
   const customColor = d.color
   const textAlign = d.align ?? 'left'
   const justifyContent = d.valign === 'middle' ? 'center' : d.valign === 'bottom' ? 'flex-end' : 'flex-start'
+  const shape = d.shape ?? 'rect'
+  const isShaped = shape !== 'rect'
+  const hex = STATUS_HEX[d.status] || STATUS_HEX.backlog
+  const shapeFill   = customColor ? customColor + '1a' : hex.fill
+  const shapeStroke = customColor || hex.stroke
+  const contentInset = SHAPE_INSET[shape] ?? SHAPE_INSET.rect
   const actions = useRoadmapActions()
   const updateNodeInternals = useUpdateNodeInternals()
   const colorBtnRef = useRef<HTMLButtonElement>(null)
@@ -153,52 +200,68 @@ function RoadmapCardNode({ id, data, selected }: NodeProps) {
       <Handle id="left"   type="target" position={Position.Left}   className={`!w-2 !h-2 !bg-[#1D9E75] !border-[#00461e] transition-opacity duration-150 ${hovered || selected ? 'opacity-100' : 'opacity-0'}`} />
 
       <div
-        className={`${customColor ? '' : s.bg} ${customColor ? '' : s.border} border-2 rounded-xl px-3 py-2.5 shadow-sm cursor-grab active:cursor-grabbing font-['Manrope',sans-serif] transition-all duration-150 flex flex-col`}
+        className={`${isShaped ? '' : `${customColor ? '' : s.bg} ${customColor ? '' : s.border} border-2 rounded-xl`} cursor-grab active:cursor-grabbing font-['Manrope',sans-serif] transition-all duration-150 relative`}
         style={{
           width: '100%',
           height: '100%',
           minHeight: expanded ? 120 : 60,
-          justifyContent,
-          ...(customColor ? { borderColor: customColor, backgroundColor: customColor + '1a' } : {}),
+          ...(!isShaped && customColor ? { borderColor: customColor, backgroundColor: customColor + '1a' } : {}),
         }}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
       >
-        {/* Header row: badges + toggle */}
-        <div className="flex items-center justify-between gap-1.5">
-          <div className="flex items-center gap-1.5 flex-1 min-w-0">
-            {/* Status badge */}
-            <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${s.badgeBg} ${s.badge}`}>
-              {s.label}
-            </span>
-            {/* Category badge */}
-            <span className={`shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${c.cls}`}>
-              {c.icon} {c.label}
-            </span>
+        {/* SVG shape background */}
+        {isShaped && (
+          <svg
+            viewBox="0 0 1 1"
+            preserveAspectRatio="none"
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none' }}
+          >
+            <CardShapeSVG shape={shape} fill={shapeFill} stroke={shapeStroke} />
+          </svg>
+        )}
+
+        {/* Content */}
+        <div
+          className="flex flex-col h-full"
+          style={{ position: 'relative', zIndex: 1, ...contentInset }}
+        >
+          {/* Header row: badges + toggle — sempre no topo */}
+          <div className="flex items-center justify-between gap-1.5 shrink-0">
+            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+              {d.status && s && (
+                <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${s.badgeBg} ${s.badge}`}>
+                  {s.label}
+                </span>
+              )}
+              {d.category && c && (
+                <span className={`shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${c.cls}`}>
+                  {c.icon} {c.label}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={toggleExpanded}
+              title={expanded ? 'Minimizar' : 'Expandir'}
+              className={`nodrag nopan shrink-0 w-4 h-4 flex items-center justify-center rounded text-[10px] leading-none transition-colors hover:opacity-70 ${s.toggleColor}`}
+              style={{ fontSize: 10 }}
+            >
+              {expanded ? '▴' : '▾'}
+            </button>
           </div>
 
-          {/* Toggle button — nodrag prevents accidental drag on click */}
-          <button
-            onClick={toggleExpanded}
-            title={expanded ? 'Minimizar' : 'Expandir'}
-            className={`nodrag nopan shrink-0 w-4 h-4 flex items-center justify-center rounded text-[10px] leading-none transition-colors hover:opacity-70 ${s.toggleColor}`}
-            style={{ fontSize: 10 }}
-          >
-            {expanded ? '▴' : '▾'}
-          </button>
+          {/* Título + descrição — alinhamento vertical aplicado aqui */}
+          <div className="flex flex-col flex-1 min-h-0 overflow-hidden" style={{ justifyContent }}>
+            <p className={`text-sm font-bold leading-tight mt-1.5 ${isDone ? 'text-[#c7ff3d]' : 'text-[#1A1A1A]'}`} style={{ textAlign }}>
+              {d.title}
+            </p>
+            {expanded && d.description && (
+              <p className={`text-[11px] mt-1.5 leading-relaxed whitespace-pre-wrap ${isDone ? 'text-white/60' : 'text-gray-500'}`} style={{ textAlign }}>
+                {d.description}
+              </p>
+            )}
+          </div>
         </div>
-
-        {/* Title — always visible */}
-        <p className={`text-sm font-bold leading-tight mt-1.5 ${isDone ? 'text-[#c7ff3d]' : 'text-[#1A1A1A]'}`} style={{ textAlign }}>
-          {d.title}
-        </p>
-
-        {/* Description — only when expanded */}
-        {expanded && d.description && (
-          <p className={`text-[11px] mt-1.5 leading-relaxed whitespace-pre-wrap ${isDone ? 'text-white/60' : 'text-gray-500'}`} style={{ textAlign }}>
-            {d.description}
-          </p>
-        )}
       </div>
 
       <Handle id="right"  type="source" position={Position.Right}  className={`!w-2 !h-2 !bg-[#1D9E75] !border-[#00461e] transition-opacity duration-150 ${hovered || selected ? 'opacity-100' : 'opacity-0'}`} />
