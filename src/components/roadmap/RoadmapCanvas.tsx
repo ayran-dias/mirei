@@ -394,6 +394,51 @@ function Canvas({ initialNodes, initialEdges, isEditor: isEditorProp, initialVie
     return () => window.removeEventListener('keydown', handler)
   }, [isEditor, handleUndo, nodes, edges, setNodes, triggerSave])
 
+  // ── Alignment ────────────────────────────────────────────────────────────────
+  const selectedNodes = useMemo(() => nodes.filter(n => n.selected), [nodes])
+
+  const nodeW = (n: Node) => (n.style?.width as number | undefined) ?? (n as any).measured?.width ?? 230
+  const nodeH = (n: Node) => (n.style?.height as number | undefined) ?? (n as any).measured?.height ?? 120
+
+  const applyAlign = useCallback((fn: (ns: Node[]) => Node[]) => {
+    setNodes(ns => {
+      const updated = fn(ns)
+      triggerSave(updated, edges)
+      return updated
+    })
+  }, [setNodes, edges, triggerSave])
+
+  const alignLeft    = useCallback(() => applyAlign(ns => { const sel = ns.filter(n => n.selected); const x = Math.min(...sel.map(n => n.position.x)); return ns.map(n => n.selected ? { ...n, position: { ...n.position, x } } : n) }), [applyAlign])
+  const alignCenterH = useCallback(() => applyAlign(ns => { const sel = ns.filter(n => n.selected); const cx = sel.reduce((s, n) => s + n.position.x + nodeW(n) / 2, 0) / sel.length; return ns.map(n => n.selected ? { ...n, position: { ...n.position, x: cx - nodeW(n) / 2 } } : n) }), [applyAlign, nodeW])
+  const alignRight   = useCallback(() => applyAlign(ns => { const sel = ns.filter(n => n.selected); const x = Math.max(...sel.map(n => n.position.x + nodeW(n))); return ns.map(n => n.selected ? { ...n, position: { ...n.position, x: x - nodeW(n) } } : n) }), [applyAlign, nodeW])
+  const alignTop     = useCallback(() => applyAlign(ns => { const sel = ns.filter(n => n.selected); const y = Math.min(...sel.map(n => n.position.y)); return ns.map(n => n.selected ? { ...n, position: { ...n.position, y } } : n) }), [applyAlign])
+  const alignMiddleV = useCallback(() => applyAlign(ns => { const sel = ns.filter(n => n.selected); const cy = sel.reduce((s, n) => s + n.position.y + nodeH(n) / 2, 0) / sel.length; return ns.map(n => n.selected ? { ...n, position: { ...n.position, y: cy - nodeH(n) / 2 } } : n) }), [applyAlign, nodeH])
+  const alignBottom  = useCallback(() => applyAlign(ns => { const sel = ns.filter(n => n.selected); const y = Math.max(...sel.map(n => n.position.y + nodeH(n))); return ns.map(n => n.selected ? { ...n, position: { ...n.position, y: y - nodeH(n) } } : n) }), [applyAlign, nodeH])
+
+  const distributeH  = useCallback(() => applyAlign(ns => {
+    const sel = [...ns.filter(n => n.selected)].sort((a, b) => a.position.x - b.position.x)
+    if (sel.length < 3) return ns
+    const left = sel[0].position.x
+    const right = sel[sel.length - 1].position.x + nodeW(sel[sel.length - 1])
+    const totalW = sel.reduce((s, n) => s + nodeW(n), 0)
+    const gap = (right - left - totalW) / (sel.length - 1)
+    let cursor = left
+    const positions = new Map(sel.map(n => { const x = cursor; cursor += nodeW(n) + gap; return [n.id, x] }))
+    return ns.map(n => positions.has(n.id) ? { ...n, position: { ...n.position, x: positions.get(n.id)! } } : n)
+  }), [applyAlign, nodeW])
+
+  const distributeV  = useCallback(() => applyAlign(ns => {
+    const sel = [...ns.filter(n => n.selected)].sort((a, b) => a.position.y - b.position.y)
+    if (sel.length < 3) return ns
+    const top = sel[0].position.y
+    const bottom = sel[sel.length - 1].position.y + nodeH(sel[sel.length - 1])
+    const totalH = sel.reduce((s, n) => s + nodeH(n), 0)
+    const gap = (bottom - top - totalH) / (sel.length - 1)
+    let cursor = top
+    const positions = new Map(sel.map(n => { const y = cursor; cursor += nodeH(n) + gap; return [n.id, y] }))
+    return ns.map(n => positions.has(n.id) ? { ...n, position: { ...n.position, y: positions.get(n.id)! } } : n)
+  }), [applyAlign, nodeH])
+
   // ── Color palette ─────────────────────────────────────────────────────────────
   // Keep ref in sync with state so buildPayload always reads the latest
   useEffect(() => { customColorsRef.current = customColors }, [customColors])
@@ -1078,6 +1123,47 @@ function Canvas({ initialNodes, initialEdges, isEditor: isEditorProp, initialVie
             </span>
           )}
         </div>
+
+        {/* Alignment toolbar — visible when 2+ nodes selected */}
+        {isEditor && selectedNodes.length >= 2 && (
+          <div className="absolute top-14 left-3 z-10 flex items-center gap-0.5 bg-white border border-gray-200 rounded-xl shadow-lg px-2 py-1.5">
+            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mr-1">{selectedNodes.length} selecionados</span>
+            <div className="w-px h-4 bg-gray-200 mx-0.5" />
+            {/* Horizontal align */}
+            {([
+              { fn: alignLeft,    title: 'Alinhar à esquerda',   icon: <><rect x="3" y="4" width="2" height="16" rx="1" fill="currentColor"/><rect x="7" y="7" width="10" height="4" rx="1"/><rect x="7" y="13" width="14" height="4" rx="1"/></> },
+              { fn: alignCenterH, title: 'Centralizar horizontal', icon: <><rect x="11" y="3" width="2" height="18" rx="1" fill="currentColor"/><rect x="5" y="7" width="14" height="4" rx="1"/><rect x="7" y="13" width="10" height="4" rx="1"/></> },
+              { fn: alignRight,   title: 'Alinhar à direita',    icon: <><rect x="19" y="4" width="2" height="16" rx="1" fill="currentColor"/><rect x="7" y="7" width="10" height="4" rx="1"/><rect x="3" y="13" width="14" height="4" rx="1"/></> },
+            ] as const).map(({ fn, title, icon }) => (
+              <button key={title} onClick={fn} title={title} className="w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 text-gray-600 hover:text-[#00461e] transition-colors">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>{icon}</svg>
+              </button>
+            ))}
+            <div className="w-px h-4 bg-gray-200 mx-0.5" />
+            {/* Vertical align */}
+            {([
+              { fn: alignTop,     title: 'Alinhar ao topo',      icon: <><rect x="4" y="3" width="16" height="2" rx="1" fill="currentColor"/><rect x="7" y="7" width="4" height="10" rx="1"/><rect x="13" y="7" width="4" height="14" rx="1"/></> },
+              { fn: alignMiddleV, title: 'Centralizar vertical',  icon: <><rect x="3" y="11" width="18" height="2" rx="1" fill="currentColor"/><rect x="7" y="5" width="4" height="14" rx="1"/><rect x="13" y="7" width="4" height="10" rx="1"/></> },
+              { fn: alignBottom,  title: 'Alinhar à base',       icon: <><rect x="4" y="19" width="16" height="2" rx="1" fill="currentColor"/><rect x="7" y="7" width="4" height="10" rx="1"/><rect x="13" y="3" width="4" height="14" rx="1"/></> },
+            ] as const).map(({ fn, title, icon }) => (
+              <button key={title} onClick={fn} title={title} className="w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 text-gray-600 hover:text-[#00461e] transition-colors">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>{icon}</svg>
+              </button>
+            ))}
+            {selectedNodes.length >= 3 && (<>
+              <div className="w-px h-4 bg-gray-200 mx-0.5" />
+              {/* Distribute — only with 3+ */}
+              {([
+                { fn: distributeH, title: 'Distribuir horizontalmente', icon: <><rect x="3" y="4" width="2" height="16" rx="1" fill="currentColor"/><rect x="19" y="4" width="2" height="16" rx="1" fill="currentColor"/><rect x="9" y="8" width="6" height="8" rx="1"/></> },
+                { fn: distributeV, title: 'Distribuir verticalmente',   icon: <><rect x="4" y="3" width="16" height="2" rx="1" fill="currentColor"/><rect x="4" y="19" width="16" height="2" rx="1" fill="currentColor"/><rect x="8" y="9" width="8" height="6" rx="1"/></> },
+              ] as const).map(({ fn, title, icon }) => (
+                <button key={title} onClick={fn} title={title} className="w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 text-gray-600 hover:text-[#00461e] transition-colors">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>{icon}</svg>
+                </button>
+              ))}
+            </>)}
+          </div>
+        )}
 
         {/* Hint */}
         <div className="absolute top-3 right-14 z-10">
