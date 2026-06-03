@@ -1211,6 +1211,8 @@ function Canvas({ initialNodes, initialEdges, isEditor: isEditorProp, initialVie
           edgesReconnectable={isEditor}
           selectionOnDrag={isEditor && selectMode}
           panOnDrag={isEditor && selectMode ? [1, 2] : true}
+          autoPanOnNodeDrag
+          autoPanSpeed={40}
           selectionMode={SelectionMode.Partial}
           deleteKeyCode={isEditor ? ['Backspace', 'Delete'] : null}
           onReconnect={isEditor ? onReconnect : undefined}
