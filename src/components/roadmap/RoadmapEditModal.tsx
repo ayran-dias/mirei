@@ -67,22 +67,38 @@ export default function RoadmapEditModal({ open, initial, onSave, onDelete, onCl
           </div>
           <div>
             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Alinhamento</label>
-            <div className="mt-1 flex gap-1">
-              {(['left', 'center', 'right'] as const).map(a => (
-                <button
-                  key={a}
-                  type="button"
-                  onClick={() => set('align', a)}
-                  title={a === 'left' ? 'Esquerda' : a === 'center' ? 'Centro' : 'Direita'}
-                  className={`flex-1 flex items-center justify-center py-1.5 rounded-lg border transition-colors ${form.align === a || (!form.align && a === 'left') ? 'bg-[#00461e] border-[#00461e] text-white' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
-                >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                    {a === 'left'   && <><line x1="3" y1="6"  x2="21" y2="6" /><line x1="3" y1="12" x2="15" y2="12" /><line x1="3" y1="18" x2="18" y2="18" /></>}
-                    {a === 'center' && <><line x1="3" y1="6"  x2="21" y2="6" /><line x1="6" y1="12" x2="18" y2="12" /><line x1="4" y1="18" x2="20" y2="18" /></>}
-                    {a === 'right'  && <><line x1="3" y1="6"  x2="21" y2="6" /><line x1="9" y1="12" x2="21" y2="12" /><line x1="6" y1="18" x2="21" y2="18" /></>}
-                  </svg>
-                </button>
-              ))}
+            <div className="mt-1 flex gap-2">
+              {/* Horizontal */}
+              <div className="flex gap-1 flex-1">
+                {(['left', 'center', 'right'] as const).map(a => (
+                  <button key={a} type="button" onClick={() => set('align', a)}
+                    title={a === 'left' ? 'Esquerda' : a === 'center' ? 'Centro' : 'Direita'}
+                    className={`flex-1 flex items-center justify-center py-1.5 rounded-lg border transition-colors ${form.align === a || (!form.align && a === 'left') ? 'bg-[#00461e] border-[#00461e] text-white' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      {a === 'left'   && <><line x1="3" y1="6"  x2="21" y2="6" /><line x1="3" y1="12" x2="15" y2="12" /><line x1="3" y1="18" x2="18" y2="18" /></>}
+                      {a === 'center' && <><line x1="3" y1="6"  x2="21" y2="6" /><line x1="6" y1="12" x2="18" y2="12" /><line x1="4" y1="18" x2="20" y2="18" /></>}
+                      {a === 'right'  && <><line x1="3" y1="6"  x2="21" y2="6" /><line x1="9" y1="12" x2="21" y2="12" /><line x1="6" y1="18" x2="21" y2="18" /></>}
+                    </svg>
+                  </button>
+                ))}
+              </div>
+              <div className="w-px bg-gray-200" />
+              {/* Vertical */}
+              <div className="flex gap-1 flex-1">
+                {(['top', 'middle', 'bottom'] as const).map(v => (
+                  <button key={v} type="button" onClick={() => set('valign', v)}
+                    title={v === 'top' ? 'Topo' : v === 'middle' ? 'Meio' : 'Base'}
+                    className={`flex-1 flex items-center justify-center py-1.5 rounded-lg border transition-colors ${form.valign === v || (!form.valign && v === 'top') ? 'bg-[#00461e] border-[#00461e] text-white' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      {v === 'top'    && <><line x1="3" y1="3"  x2="21" y2="3"  /><rect x="7" y="6"  width="10" height="5" rx="1"/><rect x="5" y="13" width="14" height="5" rx="1" opacity=".3" /></>}
+                      {v === 'middle' && <><line x1="3" y1="12" x2="21" y2="12" /><rect x="7" y="5"  width="10" height="5" rx="1"/><rect x="7" y="14" width="10" height="5" rx="1"/></>}
+                      {v === 'bottom' && <><line x1="3" y1="21" x2="21" y2="21" /><rect x="5" y="6"  width="14" height="5" rx="1" opacity=".3"/><rect x="7" y="14" width="10" height="5" rx="1"/></>}
+                    </svg>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">

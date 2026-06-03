@@ -10,6 +10,7 @@ export interface RoadmapCardData {
   expanded?: boolean
   color?: string
   align?: 'left' | 'center' | 'right'
+  valign?: 'top' | 'middle' | 'bottom'
 }
 
 const STATUS_STYLE: Record<string, {
@@ -81,6 +82,7 @@ function RoadmapCardNode({ id, data, selected }: NodeProps) {
   const isDone = d.status === 'done'
   const customColor = d.color
   const textAlign = d.align ?? 'left'
+  const justifyContent = d.valign === 'middle' ? 'center' : d.valign === 'bottom' ? 'flex-end' : 'flex-start'
   const actions = useRoadmapActions()
   const updateNodeInternals = useUpdateNodeInternals()
   const colorBtnRef = useRef<HTMLButtonElement>(null)
@@ -151,11 +153,12 @@ function RoadmapCardNode({ id, data, selected }: NodeProps) {
       <Handle id="left"   type="target" position={Position.Left}   className={`!w-2 !h-2 !bg-[#1D9E75] !border-[#00461e] transition-opacity duration-150 ${hovered || selected ? 'opacity-100' : 'opacity-0'}`} />
 
       <div
-        className={`${customColor ? '' : s.bg} ${customColor ? '' : s.border} border-2 rounded-xl px-3 py-2.5 shadow-sm cursor-grab active:cursor-grabbing font-['Manrope',sans-serif] transition-all duration-150`}
+        className={`${customColor ? '' : s.bg} ${customColor ? '' : s.border} border-2 rounded-xl px-3 py-2.5 shadow-sm cursor-grab active:cursor-grabbing font-['Manrope',sans-serif] transition-all duration-150 flex flex-col`}
         style={{
           width: '100%',
           height: '100%',
           minHeight: expanded ? 120 : 60,
+          justifyContent,
           ...(customColor ? { borderColor: customColor, backgroundColor: customColor + '1a' } : {}),
         }}
         onMouseEnter={() => setHovered(true)}
