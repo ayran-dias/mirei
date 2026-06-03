@@ -502,9 +502,13 @@ function Canvas({ initialNodes, initialEdges, isEditor: isEditorProp, initialVie
 
   const handleNodesChange: OnNodesChange = useCallback((changes) => {
     onNodesChange(changes)
-    setTimeout(() => {
-      setNodes(n => { triggerSave(n, edges); return n })
-    }, 0)
+    // Skip auto-save for ReactFlow-internal changes (dimensions on mount, selection)
+    const hasUserChange = changes.some(c => c.type !== 'dimensions' && c.type !== 'select')
+    if (hasUserChange) {
+      setTimeout(() => {
+        setNodes(n => { triggerSave(n, edges); return n })
+      }, 0)
+    }
   }, [onNodesChange, edges, triggerSave, setNodes])
 
   const handleEdgesChange: OnEdgesChange = useCallback((changes) => {
