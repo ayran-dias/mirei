@@ -77,19 +77,44 @@ Validado que `npv_kgiro` tem campo `reference_date` e `t` (período), permitindo
 - **React 18 + Tailwind CSS + Recharts** buildado com Vite + vite-plugin-singlefile → HTML inline servido pelo GAS
 - Justificativa: carregamento incremental via hooks (cada seção carrega independente), escalável, Recharts leve para gráficos
 
-### Build pipeline
-- Código fonte em `frontend/src/` (Google Drive)
-- Build em `/c/temp/felicia-build/` (path local sem espaços — Google Drive com espaços quebra Vite)
-- Copiar arquivos manualmente para build dir antes de `npx vite build`
-- Output `dist/index.html` → copia para `gas/Index.html` → `clasp push --force`
+### Build pipeline e deploy
 
-### Deploy fixo
-- **Deployment ID:** `AKfycbxTNqpYwEBxdXLg-qmcNGjM-agAFAeLAt4YEgZOvh7m7KnRaLwuMtuGmgg__h4TrrmI`
-- **URL fixa:** `https://script.google.com/a/macros/stone.com.br/s/AKfycbxTNqpYwEBxdXLg-qmcNGjM-agAFAeLAt4YEgZOvh7m7KnRaLwuMtuGmgg__h4TrrmI/exec`
-- Sempre atualizar com `-i <ID>` para não criar URLs novas
-- Comando: `clasp deploy -i AKfycbxTNqpYwEBxdXLg-qmcNGjM-agAFAeLAt4YEgZOvh7m7KnRaLwuMtuGmgg__h4TrrmI -d "descrição"`
-- **Projeto GAS:** `1qKErmyBogImZKfioaCkDPcowFYkTGQnFDQbpZk1kSKe_zXk_N0vqthGU`
-- **Versao atual:** v227 (deployada 2026-06-01)
+**IDs:**
+- Script ID: `1qKErmyBogImZKfioaCkDPcowFYkTGQnFDQbpZk1kSKe_zXk_N0vqthGU`
+- Deployment ID (fixo): `AKfycbxTNqpYwEBxdXLg-qmcNGjM-agAFAeLAt4YEgZOvh7m7KnRaLwuMtuGmgg__h4TrrmI`
+- URL: `https://script.google.com/a/macros/stone.com.br/s/AKfycbxTNqpYwEBxdXLg-qmcNGjM-agAFAeLAt4YEgZOvh7m7KnRaLwuMtuGmgg__h4TrrmI/exec`
+- GitHub: `https://github.com/ayran-dias/mirei` (branch master)
+- Versão atual: v331 (2026-06-08)
+
+**Deploy completo (frontend + backend):**
+```bash
+# ATENÇÃO: SEMPRE deletar src antes de copiar — evita src/src/ aninhado
+SRC="G:/Drives compartilhados/Pricing KA/11. Estudos/2026.04.24 - cp/estudos/2026-05-20-felicia-credito/frontend"
+GAS="G:/Drives compartilhados/Pricing KA/11. Estudos/2026.04.24 - cp/estudos/2026-05-20-felicia-credito/gas"
+
+rm -rf /c/tmp_felicia_build/src
+cp -r "$SRC/src" /c/tmp_felicia_build/src
+cp "$SRC/package.json" "$SRC/index.html" "$SRC/vite.config.ts" "$SRC/tailwind.config.js" "$SRC/postcss.config.js" "$SRC/tsconfig.json" /c/tmp_felicia_build/
+cd /c/tmp_felicia_build && npm run build
+
+cp /c/tmp_felicia_build/dist/index.html "$GAS/Index.html"
+cd "$GAS" && npx clasp push --force
+npx clasp deploy -i AKfycbxTNqpYwEBxdXLg-qmcNGjM-agAFAeLAt4YEgZOvh7m7KnRaLwuMtuGmgg__h4TrrmI -d "descrição"
+```
+
+**Deploy só Code.gs (sem rebuild):**
+```bash
+cd "G:/Drives compartilhados/Pricing KA/11. Estudos/2026.04.24 - cp/estudos/2026-05-20-felicia-credito/gas"
+npx clasp push --force
+npx clasp deploy -i AKfycbxTNqpYwEBxdXLg-qmcNGjM-agAFAeLAt4YEgZOvh7m7KnRaLwuMtuGmgg__h4TrrmI -d "descrição"
+```
+
+**Gotchas críticos:**
+- Build path `/c/tmp_felicia_build/` (não `/c/temp/`) — MAX_PATH do Windows quebra npm dentro do Google Drive
+- `rm -rf /c/tmp_felicia_build/src` obrigatório antes de copiar — cp -r não substitui se destino existir
+- `node_modules` persiste em `/c/tmp_felicia_build/` — se `package.json` mudou, rodar `npm install` primeiro
+- Injetar dados no GAS (ex: rotas admin) ANTES de abrir o roadmap — auto-save do frontend sobrescreve
+- `const` com `useCallback` não sofre hoisting — declarar ANTES do `useEffect` que a referencia
 
 ### Gotcha: campo Gateway
 - O campo correto na `PnL_Dashs_part` é `Rcta_gateway` (não `Rcta_gateway_sum`). Erro causou query 400 e "Sem dados" no frontend.
